@@ -9,7 +9,13 @@ function InteractiveMap({ currentLocation, onPointSelected, onRouteDetails }) {
   const initializeMap = () => {
     if (MapStore.mapInstance) {
       console.log("Используем существующую карту.");
-      mapContainerRef.current.appendChild(MapStore.mapInstance.container.getParentElement());
+
+      // Проверяем, что контейнер карты еще не добавлен в DOM
+      const mapContainer = MapStore.mapInstance.container.getParentElement();
+      if (!mapContainerRef.current.contains(mapContainer)) {
+        mapContainerRef.current.appendChild(mapContainer);
+      }
+
       MapStore.mapInstance.container.fitToViewport();
       attachEventHandlers(MapStore.mapInstance);
       return;
@@ -108,10 +114,10 @@ function InteractiveMap({ currentLocation, onPointSelected, onRouteDetails }) {
     return () => {
       if (!MapStore.mapInstance) return;
 
-      console.log("Сохраняем состояние карты перед размонтированием.");
+      console.log("Отключаем карту перед размонтированием.");
       const mapContainer = MapStore.mapInstance.container.getParentElement();
-      if (mapContainer) {
-        mapContainer.remove();
+      if (mapContainer && mapContainer.parentElement) {
+        mapContainer.parentElement.removeChild(mapContainer);
       }
     };
   }, [currentLocation]);

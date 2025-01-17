@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import InteractiveMap from "../components/InteractiveMap";
 import WeatherAnimation from "../components/WeatherAnimation";
 import Header from "../components/Header";
@@ -6,13 +6,54 @@ import Header from "../components/Header";
 const OPEN_WEATHER_API_KEY = "cba05fac32e986f325878b497331cfc8";
 
 function DriverRoutePage() {
-  const [currentLocation] = useState([55.7558, 37.6173]);
+  const [currentLocation, setCurrentLocation] = useState(null);
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [weather, setWeather] = useState(null);
   const [routeDetails, setRouteDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLocating, setIsLocating] = useState(true); // New state for geolocation loading
+  const [geolocationError, setGeolocationError] = useState(null);
 
-  const handlePointSelected = async (coords) => {
+  // Function to fetch the user's current location
+  const fetchCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGeolocationError("Геолокация не поддерживается вашим браузером.");
+      setIsLocating(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setCurrentLocation([latitude, longitude]);
+        setIsLocating(false);
+        console.log("Получена новая позиция:", latitude, longitude);
+      },
+      (error) => {
+        setIsLocating(false);
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setGeolocationError("Разрешение на использование геолокации отклонено.");
+            break;
+          case error.POSITION_UNAVAILABLE:
+            setGeolocationError("Информация о местоположении недоступна.");
+            break;
+          case error.TIMEOUT:
+            setGeolocationError("Превышено время ожидания получения местоположения.");
+            break;
+          default:
+            setGeolocationError("Не удалось определить местоположение.");
+            break;
+        }
+      }
+    );
+  }, []);
+
+  useEffect(() => {
+    fetchCurrentLocation();
+  }, [fetchCurrentLocation]);
+
+  const handlePointSelected = useCallback(async (coords) => {
     setSelectedPoint(coords);
     setIsLoading(true);
 
@@ -40,12 +81,21 @@ function DriverRoutePage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const handleRouteDetails = (details) => {
-    console.log("Данные маршрута:", details);
-    setRouteDetails(details);
-  };
+  const handleRouteDetails = useCallback((details) => {
+    setRouteDetails((prevDetails) => {
+      if (
+        !prevDetails ||
+        prevDetails.distance !== details.distance ||
+        prevDetails.duration !== details.duration
+      ) {
+        console.log("Данные маршрута:", details);
+        return details;
+      }
+      return prevDetails;
+    });
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
@@ -53,11 +103,20 @@ function DriverRoutePage() {
       <div style={{ fontFamily: "'Roboto', sans-serif", textAlign: "center", padding: "20px" }}>
         <h1 style={{ marginBottom: "20px", fontSize: "28px", color: "#333" }}>Маршруты доставки</h1>
 
-        <InteractiveMap
-          currentLocation={currentLocation}
-          onPointSelected={handlePointSelected}
-          onRouteDetails={handleRouteDetails}
-        />
+        {isLocating && <p>Определение вашего местоположения...</p>}
+
+        {geolocationError && (
+          <p style={{ color: "red", marginBottom: "20px" }}>{geolocationError}</p>
+        )}
+
+        {currentLocation && (
+          <InteractiveMap
+            key={currentLocation.join(",")}
+            currentLocation={currentLocation}
+            onPointSelected={handlePointSelected}
+            onRouteDetails={handleRouteDetails}
+          />
+        )}
 
         {selectedPoint && (
           <p style={{ marginTop: "20px", fontSize: "18px", color: "#555" }}>

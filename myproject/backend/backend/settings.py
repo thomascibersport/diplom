@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -61,7 +62,10 @@ REST_FRAMEWORK = {
     ),
 }
 SIMPLE_JWT = {
-    'BLACKLIST_AFTER_ROTATION': True,
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Увеличиваем время жизни access-токена до 1 часа
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # Увеличиваем время жизни refresh-токена до 7 дней
+    'ROTATE_REFRESH_TOKENS': True,                   # Автоматически обновлять refresh-токен при каждом запросе
+    'BLACKLIST_AFTER_ROTATION': True,                # Добавлять старые refresh-токены в черный список
 }
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',  # React URL

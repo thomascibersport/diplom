@@ -1,17 +1,21 @@
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 
 function YandexMapLoader({ onLoad }) {
+  const stableOnLoad = useCallback(onLoad, []); // Стабилизируем onLoad
+
   useEffect(() => {
     if (window.ymaps) {
       console.log("Yandex Maps API уже загружен");
-      onLoad();
+      stableOnLoad();
       return;
     }
 
     const existingScript = document.querySelector('script[src="https://api-maps.yandex.ru/2.1/?lang=ru_RU"]');
     if (existingScript) {
       console.log("Скрипт Yandex Maps API уже существует");
-      existingScript.onload = onLoad;
+      if (!existingScript.onload) {
+        existingScript.onload = stableOnLoad;
+      }
       return;
     }
 
@@ -20,14 +24,28 @@ function YandexMapLoader({ onLoad }) {
     script.async = true;
     script.onload = () => {
       console.log("Yandex Maps API загружен");
-      onLoad();
+      stableOnLoad();
     };
     script.onerror = () => {
       console.error("Ошибка загрузки Yandex Maps API");
     };
 
     document.body.appendChild(script);
-  }, [onLoad]);
+
+    // Очистка при размонтировании
+    return () => {
+      if (script.parentElement) {
+        script.parentElement.removeChild(script);
+      }
+    };
+  }, [stableOnLoad]);
+
+  useEffect(() => {
+    const existingScript = document.querySelector('script[src="https://api-maps.yandex.ru/2.1/?lang=ru_RU"]');
+    if (existingScript) {
+      existingScript.onload = stableOnLoad;
+    }
+  }, [stableOnLoad]);
 
   return null;
 }
