@@ -10,15 +10,12 @@ function DriverRoutePage() {
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [weather, setWeather] = useState(null);
   const [routeDetails, setRouteDetails] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLocating, setIsLocating] = useState(true); // New state for geolocation loading
+  const [isLoadingWeather, setIsLoadingWeather] = useState(false);
   const [geolocationError, setGeolocationError] = useState(null);
 
-  // Function to fetch the user's current location
   const fetchCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setGeolocationError("Геолокация не поддерживается вашим браузером.");
-      setIsLocating(false);
       return;
     }
 
@@ -26,38 +23,16 @@ function DriverRoutePage() {
       (position) => {
         const { latitude, longitude } = position.coords;
         setCurrentLocation([latitude, longitude]);
-        setIsLocating(false);
-        console.log("Получена новая позиция:", latitude, longitude);
       },
-      (error) => {
-        setIsLocating(false);
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            setGeolocationError("Разрешение на использование геолокации отклонено.");
-            break;
-          case error.POSITION_UNAVAILABLE:
-            setGeolocationError("Информация о местоположении недоступна.");
-            break;
-          case error.TIMEOUT:
-            setGeolocationError("Превышено время ожидания получения местоположения.");
-            break;
-          default:
-            setGeolocationError("Не удалось определить местоположение.");
-            break;
-        }
+      () => {
+        setGeolocationError("Не удалось определить местоположение.");
       }
     );
   }, []);
 
-  useEffect(() => {
-    fetchCurrentLocation();
-  }, [fetchCurrentLocation]);
-
-  const handlePointSelected = useCallback(async (coords) => {
-    setSelectedPoint(coords);
-    setIsLoading(true);
-
+  const fetchWeatherData = useCallback(async (coords) => {
     try {
+      setIsLoadingWeather(true);
       const [lat, lon] = coords;
       const response = await fetch(
         `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${OPEN_WEATHER_API_KEY}&lang=ru`
@@ -65,7 +40,6 @@ function DriverRoutePage() {
       const data = await response.json();
 
       if (!response.ok) {
-        console.error("Ошибка ответа:", data.message);
         setWeather({ error: "Не удалось получить данные о погоде." });
         return;
       }
@@ -75,43 +49,42 @@ function DriverRoutePage() {
         description: data.weather[0].description,
         id: data.weather[0].id,
       });
-    } catch (error) {
-      console.error("Ошибка получения данных о погоде:", error);
-      setWeather({ error: "Ошибка соединения с сервером." });
+    } catch {
+      setWeather({ error: "Ошибка при получении данных о погоде." });
     } finally {
-      setIsLoading(false);
+      setIsLoadingWeather(false);
     }
   }, []);
 
+  const handlePointSelected = useCallback((coords) => {
+    setSelectedPoint(coords);
+    fetchWeatherData(coords);
+  }, [fetchWeatherData]);
+
   const handleRouteDetails = useCallback((details) => {
-    setRouteDetails((prevDetails) => {
-      if (
-        !prevDetails ||
-        prevDetails.distance !== details.distance ||
-        prevDetails.duration !== details.duration
-      ) {
-        console.log("Данные маршрута:", details);
-        return details;
-      }
-      return prevDetails;
-    });
+    setRouteDetails(details);
   }, []);
+
+  useEffect(() => {
+    fetchCurrentLocation();
+  }, [fetchCurrentLocation]);
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <Header />
-      <div style={{ fontFamily: "'Roboto', sans-serif", textAlign: "center", padding: "20px" }}>
-        <h1 style={{ marginBottom: "20px", fontSize: "28px", color: "#333" }}>Маршруты доставки</h1>
-
-        {isLocating && <p>Определение вашего местоположения...</p>}
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-semibold text-center text-gray-800 dark:text-gray-200 mb-6">
+          Маршруты доставки
+        </h1>
 
         {geolocationError && (
-          <p style={{ color: "red", marginBottom: "20px" }}>{geolocationError}</p>
+          <div className="rounded-lg bg-red-100 dark:bg-red-800 p-4 mb-4">
+            <p className="text-red-600 dark:text-red-300">{geolocationError}</p>
+          </div>
         )}
 
         {currentLocation && (
           <InteractiveMap
-            key={currentLocation.join(",")}
             currentLocation={currentLocation}
             onPointSelected={handlePointSelected}
             onRouteDetails={handleRouteDetails}
@@ -119,42 +92,67 @@ function DriverRoutePage() {
         )}
 
         {selectedPoint && (
-          <p style={{ marginTop: "20px", fontSize: "18px", color: "#555" }}>
-            Вы выбрали точку: <strong>{selectedPoint[0].toFixed(5)}, {selectedPoint[1].toFixed(5)}</strong>
-          </p>
-        )}
-
-        {isLoading && <p>Загрузка данных о погоде...</p>}
-
-        {weather && !weather.error && (
-          <div style={{
-            marginTop: "20px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            padding: "20px",
-            borderRadius: "8px",
-            background: "linear-gradient(145deg, #f5f7fa, #e2e8f0)",
-            boxShadow: "0px 4px 6px rgba(0,0,0,0.1)",
-          }}>
-            <WeatherAnimation weatherId={weather.id} />
-            <div style={{ marginTop: "10px", fontSize: "18px" }}>
-              <p>Температура: <strong>{weather.temperature}°C</strong></p>
-              <p style={{ margin: "5px 0", fontSize: "16px", color: "#666" }}>
-                {weather.description.charAt(0).toUpperCase() + weather.description.slice(1)}
-              </p>
-            </div>
-
-            {routeDetails && (
-              <div style={{ marginTop: "15px", fontSize: "16px", color: "#555" }}>
-                <p>Расстояние: <strong>{routeDetails.distance}</strong></p>
-                <p>Время в пути: <strong>{routeDetails.duration}</strong></p>
-              </div>
-            )}
+          <div className="rounded-lg shadow-md bg-white dark:bg-gray-800 p-4 mt-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              Информация о выбранной точке
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300">
+              Координаты:{" "}
+              <span className="font-semibold">
+                {selectedPoint[0].toFixed(5)}, {selectedPoint[1].toFixed(5)}
+              </span>
+            </p>
           </div>
         )}
 
-        {weather && weather.error && <p>{weather.error}</p>}
+        {isLoadingWeather && (
+          <div className="flex justify-center mt-6">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        )}
+
+        {weather && !weather.error && (
+          <div className="rounded-lg shadow-md bg-blue-100 dark:bg-blue-800 p-4 mt-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              Погода в выбранной точке
+            </h3>
+            <div className="flex items-center">
+              <WeatherAnimation weatherId={weather.id} />
+              <div className="ml-4">
+                <p className="text-gray-700 dark:text-gray-300">
+                  Температура:{" "}
+                  <span className="font-semibold">{weather.temperature}°C</span>
+                </p>
+                <p className="text-gray-600 dark:text-gray-400">
+                  {weather.description.charAt(0).toUpperCase() +
+                    weather.description.slice(1)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {weather && weather.error && (
+          <div className="rounded-lg bg-red-100 dark:bg-red-800 p-4 mt-6">
+            <p className="text-red-600 dark:text-red-300">{weather.error}</p>
+          </div>
+        )}
+
+        {routeDetails && (
+          <div className="rounded-lg shadow-md bg-green-100 dark:bg-green-800 p-4 mt-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              Данные маршрута
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300">
+              Расстояние:{" "}
+              <span className="font-semibold">{routeDetails.distance}</span>
+            </p>
+            <p className="text-gray-600 dark:text-gray-400">
+              Время в пути:{" "}
+              <span className="font-semibold">{routeDetails.duration}</span>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

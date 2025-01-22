@@ -1,30 +1,29 @@
 import React, { useEffect, useRef } from "react";
 import YandexMapLoader from "./YandexMapLoader";
-import MapStore from "../utils/MapStore"; // Глобальное хранилище карты
+import MapStore from "../utils/MapStore";
 
 function InteractiveMap({ currentLocation, onPointSelected, onRouteDetails }) {
   const mapContainerRef = useRef(null);
-  const multiRouteRef = useRef(null); // Сохраняем ссылку на текущий маршрут
+  const multiRouteRef = useRef(null);
+  const selectedPointRef = useRef(null);
 
   const initializeMap = () => {
     if (MapStore.mapInstance) {
-      console.log("Используем существующую карту.");
-
-      // Проверяем, что контейнер карты еще не добавлен в DOM
       const mapContainer = MapStore.mapInstance.container.getParentElement();
       if (!mapContainerRef.current.contains(mapContainer)) {
         mapContainerRef.current.appendChild(mapContainer);
       }
-
       MapStore.mapInstance.container.fitToViewport();
       attachEventHandlers(MapStore.mapInstance);
       return;
     }
 
-    if (!window.ymaps) return;
+    if (!window.ymaps) {
+      console.error("Yandex.Maps API не загружен");
+      return;
+    }
 
     window.ymaps.ready(() => {
-      console.log("Инициализируем карту.");
       const map = new window.ymaps.Map(mapContainerRef.current, {
         center: currentLocation,
         zoom: 10,
@@ -43,43 +42,46 @@ function InteractiveMap({ currentLocation, onPointSelected, onRouteDetails }) {
       if (coords && Array.isArray(coords)) {
         onPointSelected(coords);
         addPoint(map, coords);
-        buildRoute(map, currentLocation, coords);
+        buildRoute(map, coords);
       }
     });
   };
 
   const addPoint = (map, coords) => {
+    if (selectedPointRef.current) {
+      map.geoObjects.remove(selectedPointRef.current);
+    }
+
     const placemark = new window.ymaps.Placemark(
       coords,
       { hintContent: "Выбранная точка", balloonContent: "Точка маршрута" },
       { preset: "islands#redIcon" }
     );
 
-    map.geoObjects.removeAll();
     map.geoObjects.add(placemark);
+    selectedPointRef.current = placemark;
   };
 
-  const buildRoute = (map, startPoint, endPoint) => {
-    if (!window.ymaps || !window.ymaps.multiRouter) {
-      console.error("Yandex Maps API не загружен или MultiRouter недоступен");
+  const buildRoute = (map, endPoint) => {
+    if (!currentLocation || !window.ymaps || !window.ymaps.multiRouter) {
+      console.error("Не удалось построить маршрут: карта или API не готовы.");
       return;
     }
 
     try {
-      // Удаляем предыдущий маршрут, если он существует
       if (multiRouteRef.current) {
         map.geoObjects.remove(multiRouteRef.current);
       }
 
       const multiRoute = new window.ymaps.multiRouter.MultiRoute(
         {
-          referencePoints: [startPoint, endPoint],
+          referencePoints: [currentLocation, endPoint],
           params: { avoidTrafficJams: true },
         },
         { boundsAutoApply: true }
       );
 
-      // Обработка события успешной загрузки маршрутов
+      // Обработка события успешного построения маршрутов
       multiRoute.model.events.add("requestsuccess", () => {
         const activeRoute = multiRoute.getActiveRoute();
         if (activeRoute) {
@@ -102,7 +104,7 @@ function InteractiveMap({ currentLocation, onPointSelected, onRouteDetails }) {
       });
 
       map.geoObjects.add(multiRoute);
-      multiRouteRef.current = multiRoute; // Сохраняем ссылку на маршрут
+      multiRouteRef.current = multiRoute;
     } catch (error) {
       console.error("Ошибка при построении маршрута:", error);
     }
@@ -110,14 +112,12 @@ function InteractiveMap({ currentLocation, onPointSelected, onRouteDetails }) {
 
   useEffect(() => {
     initializeMap();
-
     return () => {
-      if (!MapStore.mapInstance) return;
-
-      console.log("Отключаем карту перед размонтированием.");
-      const mapContainer = MapStore.mapInstance.container.getParentElement();
-      if (mapContainer && mapContainer.parentElement) {
-        mapContainer.parentElement.removeChild(mapContainer);
+      if (MapStore.mapInstance) {
+        const mapContainer = MapStore.mapInstance.container.getParentElement();
+        if (mapContainer && mapContainer.parentElement) {
+          mapContainer.parentElement.removeChild(mapContainer);
+        }
       }
     };
   }, [currentLocation]);
