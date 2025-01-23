@@ -1,48 +1,32 @@
 import { useEffect, useCallback } from "react";
 
-function YandexMapLoader({ onLoad }) {
-  const stableOnLoad = useCallback(onLoad, []);
+const YandexMapLoader = ({ onLoad }) => {
+  const stableOnLoad = useCallback(onLoad, [onLoad]);
 
   useEffect(() => {
-    if (window.ymaps) {
-      console.log("Yandex Maps API уже загружен");
-      window.ymaps.ready(stableOnLoad);
-      return;
-    }
+    const loadMap = () => {
+      if (window.ymaps) {
+        window.ymaps.ready(() => setTimeout(() => stableOnLoad(), 100));
+        return;
+      }
 
-    const existingScript = document.querySelector('script[src="https://api-maps.yandex.ru/2.1/?lang=ru_RU"]');
-    if (existingScript) {
-      console.log("Скрипт Yandex Maps API уже существует");
-      if (!existingScript.onload) {
-        existingScript.onload = () => {
-          console.log("Yandex Maps API успешно загружен");
-          window.ymaps.ready(stableOnLoad);
+      const existingScript = document.querySelector('script[src*="api-maps.yandex.ru"]');
+      if (!existingScript) {
+        const script = document.createElement('script');
+        script.src = `https://api-maps.yandex.ru/2.1/?apikey=f2749db0-14ee-4f82-b043-5bb8082c4aa9&lang=ru_RU`;
+        script.onload = () => {
+          window.ymaps.ready(() => setTimeout(() => stableOnLoad(), 100));
         };
-      }
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=f2749db0-14ee-4f82-b043-5bb8082c4aa9";
-    script.async = true;
-    script.onload = () => {
-      console.log("Yandex Maps API успешно загружен");
-      window.ymaps.ready(stableOnLoad);
-    };
-    script.onerror = () => {
-      console.error("Ошибка загрузки Yandex Maps API");
-    };
-
-    document.body.appendChild(script);
-
-    return () => {
-      if (script.parentElement) {
-        script.parentElement.removeChild(script);
+        document.body.appendChild(script);
       }
     };
+
+    loadMap();
+
+    return () => {};
   }, [stableOnLoad]);
 
   return null;
-}
+};
 
 export default YandexMapLoader;
