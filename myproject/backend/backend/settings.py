@@ -87,9 +87,9 @@ TEMPLATES = [
         },
     },
 ]
-
+MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
 WSGI_APPLICATION = 'backend.wsgi.application'
-
+CORS_ALLOW_ALL_ORIGINS = True 
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases

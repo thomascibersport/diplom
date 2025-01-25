@@ -15,8 +15,14 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({"message": "User registered successfully"}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'message': 'Регистрация успешно завершена'}, 
+                status=status.HTTP_201_CREATED
+            )
+        return Response(
+            {'errors': serializer.errors}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
 class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -26,6 +32,7 @@ class CurrentUserView(APIView):
             "id": user.id,
             "username": user.username,
             "email": user.email,
+            "is_staff": user.is_staff
         })
 
 

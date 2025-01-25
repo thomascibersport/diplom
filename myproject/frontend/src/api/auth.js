@@ -3,7 +3,7 @@ import axios from 'axios';
 const API_URL = 'http://127.0.0.1:8000/api/authentication/';
 
 export const register = async (userData) => {
-    return await axios.post(`${API_URL}register/`, userData);
+    return await axios.post(`${API_URL}register/`, userData); // Убедитесь, что "register/" существует
 };
 
 export const login = async (credentials) => {
