@@ -27,7 +27,7 @@ class CustomUser(AbstractUser):
     
     phone = models.CharField(
         'Телефон',
-        max_length=23,  # Увеличено для соответствия маске (+7 (999) - 999 - 99-99)
+        max_length=23,  
         unique=True,
         validators=[phone_regex],
         error_messages={

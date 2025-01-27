@@ -10,11 +10,13 @@ const App = () => {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<HomePage />} /> {/* Новая главная страница */}
-        <Route path="/routes" element={<DriverRoutePage />} /> 
+        <Route path="/" element={<HomePage />} />
+        <Route path="/routes" element={<DriverRoutePage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/profile/edit" element={<EditProfilePage />} />
+        {/* Добавьте маршрут по умолчанию */}
+        <Route path="*" element={<HomePage />} />
       </Routes>
     </Router>
   );
