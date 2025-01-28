@@ -114,23 +114,22 @@ function EditProfilePage() {
       setError(validationError);
       return;
     }
-
+  
     try {
       const token = getToken();
       if (!token) {
         navigate("/login");
         return;
       }
-
+  
       const { oldPassword, newPassword, ...profileFields } = profileData;
       const updateData = {
         ...profileFields,
-        ...(newPassword && { oldPassword, newPassword }),
+        ...(oldPassword && newPassword ? { oldPassword, newPassword } : {}),
       };
-
+  
       const response = await updateProfile(token, updateData);
-
-      // Обновление данных на клиенте
+  
       setProfileData({
         ...profileData,
         ...response.data,
@@ -138,6 +137,7 @@ function EditProfilePage() {
         newPassword: "",
         confirmNewPassword: "",
       });
+  
       alert("Профиль успешно обновлён!");
       setError(null);
     } catch (err) {
@@ -145,6 +145,7 @@ function EditProfilePage() {
       setError(err.response?.data?.message || "Не удалось обновить профиль.");
     }
   };
+  
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
