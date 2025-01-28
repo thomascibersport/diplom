@@ -1,4 +1,3 @@
-// Header.jsx
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
@@ -20,15 +19,7 @@ function Header() {
           return;
         }
         const response = await getUser(token);
-        console.log("Response data:", response); // Логируем ответ от сервера для анализа
-
-        if (response && response.username) {
-          setUsername(response.username);
-        } else {
-          console.error("Invalid user data:", response);
-          clearToken();
-          navigate("/login");
-        }
+        setUsername(response.data.username); // Установка имени пользователя
       } catch (error) {
         console.error("Ошибка загрузки данных пользователя:", error);
         clearToken();

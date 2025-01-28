@@ -24,7 +24,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'patronymic',
-            'privacy_policy_agreed'
+            'privacy_policy_agreed',
+            'avatar'
         ]
         extra_kwargs = {
             'password': {'write_only': True, 'min_length': 6},
@@ -50,3 +51,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         return User.objects.create_user(**validated_data)
         validated_data.pop('confirm_password', None)
         return super().create(validated_data)
+    def create(self, validated_data):
+        validated_data.pop('confirm_password', None)  # Убираем confirm_password перед созданием пользователя
+        validated_data.pop('privacy_policy_agreed', None)  # Убираем privacy_policy_agreed перед созданием
+        return User.objects.create_user(**validated_data)  # Создаем пользователя через create_user

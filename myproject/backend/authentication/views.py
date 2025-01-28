@@ -9,7 +9,8 @@ from .models import CustomUser
 from django.contrib.auth import authenticate, login
 from django.shortcuts import redirect
 from django.conf import settings
-
+from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import make_password, check_password
 
 
 
@@ -57,16 +58,39 @@ class UpdateProfileView(APIView):
         user = request.user
         data = request.data
 
-        # Обновляем данные пользователя
+        # Обновляем основные поля профиля
         user.username = data.get("username", user.username)
         user.email = data.get("email", user.email)
+        user.first_name = data.get("first_name", user.first_name)
+        user.last_name = data.get("last_name", user.last_name)
+        user.patronymic = data.get("patronymic", getattr(user, "patronymic", ""))
+        user.phone = data.get("phone", getattr(user, "phone", ""))
+
+        # Обработка изменения пароля
+        if "oldPassword" in data and "newPassword" in data:
+            if not check_password(data["oldPassword"], user.password):
+                return Response({"error": "Неверный старый пароль"}, status=status.HTTP_400_BAD_REQUEST)
+            if len(data["newPassword"]) < 6:
+                return Response({"error": "Пароль должен быть не менее 6 символов"}, status=status.HTTP_400_BAD_REQUEST)
+            user.password = make_password(data["newPassword"])
+
+        # Обработка загрузки аватара
+        if "avatar" in request.FILES:
+            user.avatar = request.FILES["avatar"]
+
         user.save()
 
         return Response({
             "id": user.id,
             "username": user.username,
             "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "patronymic": getattr(user, "patronymic", ""),
+            "phone": getattr(user, "phone", ""),
+            "avatar": user.avatar.url if user.avatar else None
         }, status=status.HTTP_200_OK)
+
 
 class LoginView(APIView):
     def post(self, request):
@@ -118,5 +142,8 @@ class CurrentUserView(APIView):
             "id": user.id,
             "username": user.username,
             "email": user.email,
-            "is_staff": user.is_staff
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "patronymic": getattr(user, "patronymic", ""),  # Если кастомное поле
+            "phone": getattr(user, "phone", ""),  # Если кастомное поле
         })
