@@ -48,7 +48,7 @@ class CustomUser(AbstractUser):
         'Согласие на обработку данных',
         default=False
     )
-    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
     
     def __str__(self):
         return f"{self.last_name} {self.first_name} ({self.username})"

@@ -4,6 +4,8 @@ import InputMask from "react-input-mask";
 import Header from "../components/Header";
 import { getUser, updateProfile } from "../api/auth";
 import { getToken } from "../utils/auth";
+import ReactCrop from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 
 function EditProfilePage() {
   const [profileData, setProfileData] = useState({
@@ -17,6 +19,11 @@ function EditProfilePage() {
     newPassword: "",
     confirmNewPassword: "",
   });
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [crop, setCrop] = useState({ unit: '%', width: 100, aspect: 1 });
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [src, setSrc] = useState(null);
   const [passwordVisibility, setPasswordVisibility] = useState({
     oldPassword: false,
     newPassword: false,
@@ -47,6 +54,9 @@ function EditProfilePage() {
           newPassword: "",
           confirmNewPassword: "",
         });
+        if (user.avatar) {
+          setAvatarPreview(user.avatar);
+        }
         setLoading(false);
       } catch (err) {
         console.error("Ошибка загрузки данных пользователя:", err);
@@ -63,7 +73,51 @@ function EditProfilePage() {
       [field]: !prev[field],
     }));
   };
+  const handleImageUpload = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        setSrc(reader.result);
+        setCropModalOpen(true);
+      });
+      reader.readAsDataURL(e.target.files[0]);
+    }
+  };
 
+  const getCroppedImg = (image, crop) => {
+    const canvas = document.createElement('canvas');
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+    canvas.width = crop.width;
+    canvas.height = crop.height;
+    const ctx = canvas.getContext('2d');
+
+    ctx.drawImage(
+      image,
+      crop.x * scaleX,
+      crop.y * scaleY,
+      crop.width * scaleX,
+      crop.height * scaleY,
+      0,
+      0,
+      crop.width,
+      crop.height
+    );
+
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        const file = new File([blob], `avatar_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        setAvatarFile(file);
+        setAvatarPreview(URL.createObjectURL(blob));
+        resolve(file);
+      }, 'image/jpeg');
+    });
+  };
+  const handleCropComplete = async (crop) => {
+    const image = document.getElementById('crop-image');
+    await getCroppedImg(image, crop);
+    setCropModalOpen(false);
+  };
   const validateInput = () => {
     const {
       first_name,
@@ -81,6 +135,14 @@ function EditProfilePage() {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     const phoneRegex = /^\+7 \(\d{3}\) - \d{3} - \d{2}-\d{2}$/;
 
+
+    if (avatarFile && !avatarFile.type.includes('image/')) {
+      return "Файл аватарки должен быть изображением";
+    }
+
+    if (avatarFile && avatarFile.size > 5 * 1024 * 1024) {
+      return "Размер аватарки не должен превышать 5MB";
+    }
     if (!isCyrillic.test(first_name.trim())) {
       return "Имя должно содержать только кириллицу.";
     }
@@ -109,6 +171,13 @@ function EditProfilePage() {
   };
 
   const handleSave = async () => {
+    console.log("Сохраняем аватар:", avatarFile); // Дебаг
+    
+    if (!avatarFile) {
+      alert("Файл не выбран!");
+      return;
+    }
+  
     const validationError = validateInput();
     if (validationError) {
       setError(validationError);
@@ -126,17 +195,12 @@ function EditProfilePage() {
       const updateData = {
         ...profileFields,
         ...(oldPassword && newPassword ? { oldPassword, newPassword } : {}),
+        avatar: avatarFile,  // Убеждаемся, что файл передается!
       };
   
-      const response = await updateProfile(token, updateData);
+      console.log("Отправляем данные:", updateData);  // Дебаг
   
-      setProfileData({
-        ...profileData,
-        ...response.data,
-        oldPassword: "",
-        newPassword: "",
-        confirmNewPassword: "",
-      });
+      const response = await updateProfile(token, updateData);
   
       alert("Профиль успешно обновлён!");
       setError(null);
@@ -164,9 +228,50 @@ function EditProfilePage() {
           Редактирование профиля
         </h1>
         <div className="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+
+        <div className="mb-6 flex justify-center">
+        <div className="relative">
+              <img
+                src={avatarPreview}
+                className="w-32 h-32 rounded-full object-cover border-4 border-gray-200 dark:border-gray-600"
+                alt="Аватар"
+              />
+              <label className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full p-2 cursor-pointer hover:bg-blue-700">
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                📷
+              </label>
+            </div>
+          </div>
+
+          {cropModalOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-4 rounded-lg">
+                {src && (
+                  <ReactCrop
+                    crop={crop}
+                    onChange={(c) => setCrop(c)}
+                    onComplete={handleCropComplete}
+                  >
+                    <img 
+                      id="crop-image" 
+                      src={src} 
+                      alt="Crop preview" 
+                    />
+                  </ReactCrop>
+                )}
+                <button
+                  onClick={() => setCropModalOpen(false)}
+                  className="mt-4 bg-red-500 text-white px-4 py-2 rounded"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
           {error && (
             <div className="text-red-500 text-sm mb-4">{error}</div>
           )}
+          
           {["first_name", "last_name", "patronymic", "username", "email"].map((field) => (
             <div key={field} className="mb-4">
               <label className="block text-gray-700 dark:text-gray-300 mb-2">

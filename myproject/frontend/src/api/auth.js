@@ -22,15 +22,17 @@ export const getUser = async (token) => {
 export const updateProfile = async (token, data) => {
   const formData = new FormData();
 
-  // Переносим все ключи из data в FormData
   for (const key in data) {
-    formData.append(key, data[key]);
+    if (data[key] !== null) {
+      formData.append(key, data[key]);
+    }
   }
+
+  console.log("Отправляем аватар:", formData.get("avatar"));  // Дебаг
 
   return await axios.put(`${API_URL}profile/update/`, formData, {
     headers: {
       Authorization: `Bearer ${token}`,
-      // Не задаём Content-Type явно — браузер определит его автоматически
     },
   });
 };

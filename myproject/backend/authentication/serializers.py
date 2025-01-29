@@ -1,8 +1,51 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
+from django.contrib.auth import get_user_model
+import os
 
 User = get_user_model()
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'patronymic',
+            'phone',
+            'avatar'
+        ]
+        extra_kwargs = {
+            'avatar': {'required': False, 'allow_null': True},
+            'email': {'read_only': True},
+            'username': {'read_only': True}
+        }
+class UpdateProfileSerializer(serializers.ModelSerializer):
+    avatar = serializers.ImageField(required=False)
+
+    class Meta:
+        model = User
+        fields = ["username", "email", "first_name", "last_name", "patronymic", "phone", "avatar"]
+
+    def update(self, instance, validated_data):
+        avatar = validated_data.pop("avatar", None)
+
+        if avatar:
+            # Удаляем старый аватар, если он был
+            if instance.avatar:
+                old_avatar_path = instance.avatar.path
+                if os.path.exists(old_avatar_path):
+                    os.remove(old_avatar_path)
+
+            print(f"Сохраняем аватар: {avatar}")  # Лог для проверки
+            instance.avatar = avatar
+
+        instance.save()
+        return instance
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True)
