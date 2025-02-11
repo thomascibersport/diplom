@@ -15,17 +15,18 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.views.generic import TemplateView
-from django.urls import re_path
 from django.conf import settings
 from django.conf.urls.static import static
-
+from authentication.views import RouteRecordCreateView
+from authentication.views import RouteRecordListView
+from authentication.views import proxy_deepseek
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/authentication/', include('authentication.urls')),
-    path('', TemplateView.as_view(template_name='index.html'), name='home'),
-    re_path(r'^.*$', TemplateView.as_view(template_name='index.html'), name='home'),  # Перехват React маршрутов
+    path("api/authentication/routes/", RouteRecordCreateView.as_view(), name="route_record_create"),
+    path('api/route-records/', RouteRecordListView.as_view(), name='route_record_list'),
+    path('api/proxy-deepseek/', proxy_deepseek),
+    
 ]
-
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

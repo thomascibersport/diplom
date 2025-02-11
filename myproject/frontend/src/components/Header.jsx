@@ -1,3 +1,4 @@
+// Header.jsx
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -12,31 +13,23 @@ import { getToken, logout as clearToken } from "../utils/auth";
 
 function Header() {
   const [username, setUsername] = useState("");
-  const [avatar, setAvatar] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const navigate = useNavigate();
-  console.log("Аватар в хедере:", avatar);
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         const token = getToken();
         if (!token) {
-          navigate("/login");
+          navigate("/login"); // Перенаправление на страницу входа, если токена нет
           return;
         }
         const response = await getUser(token);
-        setUsername(response.data.username);
-
-        // Если есть аватарка — используем её, иначе ставим заглушку
-        if (response.data.avatar) {
-          setAvatar(`${response.data.avatar}?t=${new Date().getTime()}`); // Добавляем timestamp
-        } else {
-          setAvatar("/default-avatar.jpg");
-        }
+        setUsername(response.data.username); // Установка имени пользователя
       } catch (error) {
         console.error("Ошибка загрузки данных пользователя:", error);
         clearToken();
-        navigate("/login");
+        navigate("/login"); // Перенаправление на страницу входа в случае ошибки
       }
     };
 
@@ -44,17 +37,17 @@ function Header() {
   }, [navigate]);
 
   const handleLogout = () => {
-    clearToken();
-    navigate("/login");
+    clearToken(); // Удаление токена из localStorage
+    navigate("/login"); // Перенаправление на страницу входа
   };
 
   const handleThemeChange = () => {
     setIsDarkMode((prevMode) => !prevMode);
-    document.documentElement.classList.toggle("dark", !isDarkMode);
+    document.documentElement.classList.toggle("dark", !isDarkMode); // Смена темы
   };
 
   const handleProfileSettings = () => {
-    navigate("/profile/edit");
+    navigate("/profile/edit"); // Перенаправление на страницу редактирования профиля
   };
 
   return (
@@ -75,24 +68,8 @@ function Header() {
         {/* Выпадающее меню пользователя */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="text-white hover:bg-gray-700 flex items-center space-x-2"
-            >
-              {/* Аватарка пользователя */}
-              {avatar ? (
-                <img
-                  src={avatar}
-                  alt="User Avatar"
-                  className="w-8 h-8 rounded-full"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-gray-500 flex items-center justify-center text-white">
-                  ?
-                </div>
-              )}
-
-              <span>{username || "Загрузка..."}</span>
+            <Button variant="ghost" className="text-white hover:bg-gray-700">
+              {username || "Загрузка..."}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="bg-white text-black shadow-lg rounded-lg mt-2">
@@ -102,7 +79,13 @@ function Header() {
             <DropdownMenuItem onClick={handleThemeChange}>
               {isDarkMode ? "Светлая тема" : "Тёмная тема"}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleLogout}>Выйти</DropdownMenuItem>
+            {/* Новая ссылка на страницу истории маршрутов */}
+            <DropdownMenuItem asChild>
+              <Link to="/route-history">История маршрутов</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
+              Выйти
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -1,100 +1,89 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from django.core.validators import validate_email
-from django.contrib.auth import get_user_model
-import os
+from rest_framework import serializers
+from .models import RouteRecord
 
 User = get_user_model()
-
-class UserProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = [
-            'username',
-            'email',
-            'first_name',
-            'last_name',
-            'patronymic',
-            'phone',
-            'avatar'
-        ]
-        extra_kwargs = {
-            'avatar': {'required': False, 'allow_null': True},
-            'email': {'read_only': True},
-            'username': {'read_only': True}
-        }
-class UpdateProfileSerializer(serializers.ModelSerializer):
-    avatar = serializers.ImageField(required=False)
+class UserSerializer(serializers.ModelSerializer):
+    avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["username", "email", "first_name", "last_name", "patronymic", "phone", "avatar"]
+        fields = ["id", "username", "email", "avatar", "first_name", "last_name", "middle_name", "phone"]
 
-    def update(self, instance, validated_data):
-        avatar = validated_data.pop("avatar", None)
+    def get_avatar(self, obj):
+        if obj.avatar:
+            return self.context['request'].build_absolute_uri(obj.avatar.url)
+        return None
 
-        if avatar:
-            # Удаляем старый аватар, если он был
-            if instance.avatar:
-                old_avatar_path = instance.avatar.path
-                if os.path.exists(old_avatar_path):
-                    os.remove(old_avatar_path)
-
-            print(f"Сохраняем аватар: {avatar}")  # Лог для проверки
-            instance.avatar = avatar
-
-        instance.save()
-        return instance
-
+        return None
 
 class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
     confirm_password = serializers.CharField(write_only=True)
-    privacy_policy_agreed = serializers.BooleanField(
-        required=True,
-        error_messages={
-            'required': 'Необходимо дать согласие на обработку данных'
-        }
-    )
 
     class Meta:
         model = User
         fields = [
-            'username',
-            'email',
-            'password',
-            'confirm_password',
-            'phone',
-            'first_name',
-            'last_name',
-            'patronymic',
-            'privacy_policy_agreed',
-            'avatar'
+            'username', 'email', 'password', 'confirm_password',
+            'first_name', 'last_name', 'middle_name', 'phone', 'agree_to_terms'
         ]
-        extra_kwargs = {
-            'password': {'write_only': True, 'min_length': 6},
-            'first_name': {'required': True},
-            'last_name': {'required': True},
-            'patronymic': {'required': False, 'allow_blank': True}
-        }
-
+    
     def validate(self, data):
-        if data['password'] != data.pop('confirm_password'):
-            raise serializers.ValidationError({
-                'confirm_password': ['Пароли не совпадают']
-            })
-        
-        if not data.get('privacy_policy_agreed'):
-            raise serializers.ValidationError({
-                'privacy_policy_agreed': ['Требуется согласие на обработку данных']
-            })
-
+        if data.get('password') != data.pop('confirm_password'):
+            raise serializers.ValidationError("Пароли не совпадают.")
         return data
+    
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password'],
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
+            middle_name=validated_data.get('middle_name', ''),
+            phone=validated_data.get('phone', ''),
+            agree_to_terms=validated_data.get('agree_to_terms', False)
+        )
+        return user
+class RouteRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RouteRecord
+        fields = [
+            'id',
+            'user',
+            'start_time',
+            'end_time',
+            'start_location',
+            'end_location',
+            'trip_duration',
+            'route_distance',
+            'route_duration',
+            'weather_description',
+            'weather_temperature',
+            'created_at'
+        ]
+        read_only_fields = ['user', 'created_at']
+        extra_kwargs = {
+            'start_time': {'required': True},
+            'end_time': {'required': True},
+            'start_location': {'required': True},
+            'end_location': {'required': True},
+            'trip_duration': {'required': True}
+        }
+def post(self, request):
+    print("Received data:", request.data)  # Логирование входящих данных
+    data = request.data.copy()
+    data['user'] = request.user.id  # Присваиваем текущего пользователя
 
-    def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
-        validated_data.pop('confirm_password', None)
-        return super().create(validated_data)
-    def create(self, validated_data):
-        validated_data.pop('confirm_password', None)  # Убираем confirm_password перед созданием пользователя
-        validated_data.pop('privacy_policy_agreed', None)  # Убираем privacy_policy_agreed перед созданием
-        return User.objects.create_user(**validated_data)  # Создаем пользователя через create_user
+    serializer = RouteRecordSerializer(data=data)
+    if serializer.is_valid():
+        serializer.save()
+        print("Saved data:", serializer.data)  # Логирование сохраненных данных
+        return Response(
+            {"message": "Маршрут сохранён", "data": serializer.data},
+            status=status.HTTP_201_CREATED
+        )
+
+    print("Validation errors:", serializer.errors)  # Логирование ошибок валидации
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

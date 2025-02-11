@@ -5,18 +5,17 @@ import HomePage from "./pages/HomePage";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import EditProfilePage from "./pages/EditProfilePage";
-
+import RouteHistoryPage from "./pages/RouteHistoryPage";
 const App = () => {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/routes" element={<DriverRoutePage />} />
+        <Route path="/" element={<HomePage />} /> {/* Новая главная страница */}
+        <Route path="/routes" element={<DriverRoutePage />} /> 
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/profile/edit" element={<EditProfilePage />} />
-        {/* Добавьте маршрут по умолчанию */}
-        <Route path="*" element={<HomePage />} />
+        <Route path="/route-history" element={<RouteHistoryPage />} />
       </Routes>
     </Router>
   );
