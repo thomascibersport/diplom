@@ -7,6 +7,8 @@ function InteractiveMap({
   currentLocation,
   selectedPoint,
   isSettingLocation,
+  isNavigationMode,
+  userHeading,
   onSetCurrentLocation,
   onPointSelected,
   onRouteDetails,
@@ -17,7 +19,6 @@ function InteractiveMap({
   const currentPlacemarkRef = useRef(null);
   const isSettingLocationRef = useRef(isSettingLocation);
 
-  // Обновляем ref при изменении пропса
   useEffect(() => {
     isSettingLocationRef.current = isSettingLocation;
   }, [isSettingLocation]);
@@ -25,8 +26,9 @@ function InteractiveMap({
   const initializeMap = useCallback(() => {
     if (!window.ymaps || !currentLocation) return;
 
-    if (MapStore.mapInstance) {
-      MapStore.mapInstance.setCenter(currentLocation);
+    // Если карта уже создана, просто обновляем её центр
+    if (MapStore.getMap()) {
+      MapStore.getMap().setCenter(currentLocation);
       return;
     }
 
@@ -34,9 +36,12 @@ function InteractiveMap({
       center: currentLocation,
       zoom: 14,
       controls: ["zoomControl", "typeSelector", "fullscreenControl"],
+      suppressMapOpenBlock: true,
     });
 
-    MapStore.mapInstance = map;
+    // Сохраняем карту в MapStore
+    MapStore.setMap(map);
+
     updateCurrentPositionMarker(map);
     attachEventHandlers(map);
   }, [currentLocation]);
@@ -51,10 +56,10 @@ function InteractiveMap({
         currentPlacemarkRef.current = new window.ymaps.Placemark(
           currentLocation,
           { hintContent: "Ваше местоположение" },
-          { 
-            preset: "islands#blueCircleIcon", 
+          {
+            preset: "islands#blueCircleIcon",
             iconColor: "#3b82f6",
-            draggable: false
+            draggable: false,
           }
         );
       }
@@ -104,6 +109,7 @@ function InteractiveMap({
         }
       );
 
+      // Обработчик успешного построения маршрута
       multiRoute.model.events.add("requestsuccess", () => {
         const activeRoute = multiRoute.getActiveRoute();
         onRouteDetails(
@@ -116,8 +122,17 @@ function InteractiveMap({
         );
       });
 
-      multiRoute.model.events.add("requesterror", () => {
-        onRouteDetails({ error: "Ошибка построения маршрута" });
+      // Обработчик смены активного маршрута (при выборе альтернативного)
+      multiRoute.model.events.add("activeroutechange", () => {
+        const activeRoute = multiRoute.getActiveRoute();
+        onRouteDetails(
+          activeRoute
+            ? {
+                distance: activeRoute.properties.get("distance").text,
+                duration: activeRoute.properties.get("duration").text,
+              }
+            : { error: "Маршрут не найден" }
+        );
       });
 
       map.geoObjects.add(multiRoute);
@@ -126,80 +141,105 @@ function InteractiveMap({
     [currentLocation, onRouteDetails]
   );
 
+  // При изменении выбранной точки или текущего местоположения обновляем маршрут
   useEffect(() => {
-    if (MapStore.mapInstance) {
+    const map = MapStore.getMap();
+    if (map && selectedPoint && isNavigationMode) {
+      try {
+        buildRoute(map, selectedPoint);
+      } catch (error) {
+        console.error("Ошибка обновления маршрута:", error);
+        onRouteDetails({ error: "Не удалось обновить маршрут" });
+      }
+    }
+  }, [currentLocation, isNavigationMode, selectedPoint, buildRoute, onRouteDetails]);
+
+  // Обновляем маркер текущего местоположения и центр карты
+  useEffect(() => {
+    const map = MapStore.getMap();
+    if (map && currentLocation) {
+      updateCurrentPositionMarker(map);
+      map.setCenter(currentLocation);
+    }
+  }, [currentLocation, updateCurrentPositionMarker]);
+
+  useEffect(() => {
+    const map = MapStore.getMap();
+    if (!map) return;
+
+    if (isSettingLocation) {
+      map.balloon.open(
+        currentLocation,
+        "Кликните на карте, чтобы установить ваше местоположение",
+        { closeButton: false }
+      );
+    } else {
+      map.balloon.close();
+    }
+  }, [isSettingLocation, currentLocation]);
+
+  // Поворот карты при навигации
+  useEffect(() => {
+    if (
+      mapContainerRef.current &&
+      isNavigationMode &&
+      typeof userHeading === "number"
+    ) {
+      mapContainerRef.current.style.transform = `rotate(${-userHeading}deg)`;
+    } else if (mapContainerRef.current) {
+      mapContainerRef.current.style.transform = "";
+    }
+  }, [userHeading, isNavigationMode]);
+
+  const attachEventHandlers = useCallback(
+    (map) => {
+      const clickHandler = (e) => {
+        const coords = e.get("coords");
+        if (!coords) return;
+
+        if (isSettingLocationRef.current) {
+          onSetCurrentLocation(coords);
+        } else {
+          onPointSelected(coords);
+        }
+      };
+
+      map.events.add("click", clickHandler);
+      return () => map.events.remove("click", clickHandler);
+    },
+    [onSetCurrentLocation, onPointSelected]
+  );
+
+  useEffect(() => {
+    initializeMap();
+    // В cleanup можно не уничтожать карту, если она должна сохраняться
+    // return () => { /* не уничтожаем карту */ };
+  }, [initializeMap]);
+
+  useEffect(() => {
+    const map = MapStore.getMap();
+    if (map) {
       if (selectedPoint) {
         try {
-          addPoint(MapStore.mapInstance, selectedPoint);
-          buildRoute(MapStore.mapInstance, selectedPoint);
+          addPoint(map, selectedPoint);
+          buildRoute(map, selectedPoint);
         } catch (error) {
           console.error("Ошибка построения маршрута:", error);
           onRouteDetails({ error: "Не удалось построить маршрут" });
         }
       } else {
-        // Очищаем маршрут и точку при сбросе selectedPoint
         if (selectedPointRef.current) {
-          MapStore.mapInstance.geoObjects.remove(selectedPointRef.current);
+          map.geoObjects.remove(selectedPointRef.current);
           selectedPointRef.current = null;
         }
         if (multiRouteRef.current) {
-          MapStore.mapInstance.geoObjects.remove(multiRouteRef.current);
+          map.geoObjects.remove(multiRouteRef.current);
           multiRouteRef.current = null;
         }
         onRouteDetails(null);
       }
     }
   }, [selectedPoint, addPoint, buildRoute, onRouteDetails]);
-
-  useEffect(() => {
-    if (MapStore.mapInstance && currentLocation) {
-      updateCurrentPositionMarker(MapStore.mapInstance);
-      MapStore.mapInstance.setCenter(currentLocation);
-    }
-  }, [currentLocation, updateCurrentPositionMarker]);
-
-  useEffect(() => {
-    if (!MapStore.mapInstance) return;
-
-    if (isSettingLocation) {
-      MapStore.mapInstance.balloon.open(
-        currentLocation,
-        "Кликните на карте, чтобы установить ваше местоположение",
-        { closeButton: false }
-      );
-    } else {
-      MapStore.mapInstance.balloon.close();
-    }
-  }, [isSettingLocation, currentLocation]);
-
-  const attachEventHandlers = useCallback((map) => {
-    const clickHandler = (e) => {
-      const coords = e.get("coords");
-      if (!coords) return;
-
-      // Используем актуальное значение из ref
-      if (isSettingLocationRef.current) {
-        onSetCurrentLocation(coords);
-      } else {
-        onPointSelected(coords);
-      }
-    };
-
-    map.events.add("click", clickHandler);
-    return () => map.events.remove("click", clickHandler);
-  }, [onSetCurrentLocation, onPointSelected]);
-
-  useEffect(() => {
-    initializeMap();
-
-    return () => {
-      if (MapStore.mapInstance) {
-        MapStore.mapInstance.geoObjects.removeAll();
-        MapStore.mapInstance.destroy();
-        MapStore.mapInstance = null;
-      }
-    };
-  }, [initializeMap]);
 
   return (
     <div>
@@ -212,6 +252,7 @@ function InteractiveMap({
           borderRadius: "0.75rem",
           overflow: "hidden",
           boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+          transition: "transform 0.3s ease-out",
         }}
       />
     </div>

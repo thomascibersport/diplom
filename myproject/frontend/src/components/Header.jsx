@@ -1,6 +1,12 @@
+// Header.jsx
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import { Button } from "./ui/button";
 import { getUser } from "../api/auth";
 import { getToken, logout as clearToken } from "../utils/auth";
@@ -13,7 +19,7 @@ function Header() {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const token = getToken(); // Получение токена из localStorage
+        const token = getToken();
         if (!token) {
           navigate("/login"); // Перенаправление на страницу входа, если токена нет
           return;
@@ -72,6 +78,10 @@ function Header() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleThemeChange}>
               {isDarkMode ? "Светлая тема" : "Тёмная тема"}
+            </DropdownMenuItem>
+            {/* Новая ссылка на страницу истории маршрутов */}
+            <DropdownMenuItem asChild>
+              <Link to="/route-history">История маршрутов</Link>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout}>
               Выйти

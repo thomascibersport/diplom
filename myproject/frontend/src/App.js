@@ -5,7 +5,7 @@ import HomePage from "./pages/HomePage";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import EditProfilePage from "./pages/EditProfilePage";
-
+import RouteHistoryPage from "./pages/RouteHistoryPage";
 const App = () => {
   return (
     <Router>
@@ -15,6 +15,7 @@ const App = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/profile/edit" element={<EditProfilePage />} />
+        <Route path="/route-history" element={<RouteHistoryPage />} />
       </Routes>
     </Router>
   );
