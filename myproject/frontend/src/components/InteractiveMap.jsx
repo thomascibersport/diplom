@@ -24,24 +24,24 @@ function InteractiveMap({
   }, [isSettingLocation]);
 
   const initializeMap = useCallback(() => {
-    if (!window.ymaps || !currentLocation) return;
+    if (!window.ymaps) return;
 
-    // Если карта уже создана, просто обновляем её центр
+    // Используем координаты по умолчанию, если currentLocation отсутствует
+    const initialCoords = currentLocation || [55.751574, 37.573856]; // Москва
+
     if (MapStore.getMap()) {
-      MapStore.getMap().setCenter(currentLocation);
+      MapStore.getMap().setCenter(initialCoords);
       return;
     }
 
     const map = new window.ymaps.Map(mapContainerRef.current, {
-      center: currentLocation,
+      center: initialCoords,
       zoom: 14,
       controls: ["zoomControl", "typeSelector", "fullscreenControl"],
       suppressMapOpenBlock: true,
     });
 
-    // Сохраняем карту в MapStore
     MapStore.setMap(map);
-
     updateCurrentPositionMarker(map);
     attachEventHandlers(map);
   }, [currentLocation]);
@@ -243,19 +243,25 @@ function InteractiveMap({
 
   return (
     <div>
-      <YandexMapLoader onLoad={initializeMap} />
-      <div
-        ref={mapContainerRef}
-        style={{
-          width: "100%",
-          height: "500px",
-          borderRadius: "0.75rem",
-          overflow: "hidden",
-          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-          transition: "transform 0.3s ease-out",
-        }}
-      />
-    </div>
+    <YandexMapLoader onLoad={initializeMap} />
+    <div
+      ref={mapContainerRef}
+      style={{
+        width: "100%",
+        height: "500px",
+        borderRadius: "0.75rem",
+        overflow: "hidden",
+        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+        transition: "transform 0.3s ease-out",
+        opacity: currentLocation ? 1 : 0.7, // Изменяем прозрачность при отсутствии координат
+      }}
+    />
+    {!currentLocation && (
+      <div className="mt-2 text-yellow-600">
+        Ожидание актуальных координат...
+      </div>
+    )}
+  </div>
   );
 }
 

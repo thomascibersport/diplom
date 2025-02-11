@@ -87,36 +87,44 @@ async function getFullAddress(coords) {
 }
 
 // Функция для запроса оптимального маршрута через DeepSeek API
-async function fetchOptimalRoute(currentLocation, destination, weather, roadData, trafficData) {
+async function fetchOptimalRoute(
+  currentLocation,
+  destination,
+  weather,
+  roadData,
+  trafficData
+) {
   // Формируем текст запроса (prompt)
   const prompt = `Построй оптимальный маршрут от точки ${currentLocation} до ${destination}. Погода: ${weather.description} при температуре ${weather.temperature}°C. Дорожная обстановка: ${roadData}. Информация о пробках: ${trafficData}. Укажи примерную дистанцию и время в пути.`;
-  
+
   // Новый базовый URL для OpenRouter и модель "deepseek/deepseek-r1:free"
   const endpoint = "https://openrouter.ai/api/v1/chat/completions";
-  
+
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       // Новый API-ключ
-      "Authorization": "Bearer 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"
+      Authorization:
+        "Bearer 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",
     },
     body: JSON.stringify({
       model: "deepseek/deepseek-r1:free",
       messages: [
-        { 
-          role: "system", 
-          content: "Ты – навигационный помощник, который строит оптимальные маршруты с учётом дорожной обстановки, пробок и погодных условий." 
+        {
+          role: "system",
+          content:
+            "Ты – навигационный помощник, который строит оптимальные маршруты с учётом дорожной обстановки, пробок и погодных условий.",
         },
-        { 
-          role: "user", 
-          content: prompt 
-        }
+        {
+          role: "user",
+          content: prompt,
+        },
       ],
-      stream: false
-    })
+      stream: false,
+    }),
   });
-  
+
   const data = await response.json();
   if (!data.choices || data.choices.length === 0) {
     console.error("Ответ не содержит ожидаемых данных:", data);
@@ -137,6 +145,10 @@ function DriverRoutePage() {
   const [speed, setSpeed] = useState(null);
   const [heading, setHeading] = useState(null);
   const [isSettingLocation, setIsSettingLocation] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const watchId = useRef(null);
+  const setWatchId = useRef(null);
+  const retryCount = useRef(0);
   const [isManualLocation, setIsManualLocation] = useState(
     !!localStorage.getItem(LOCAL_STORAGE_KEY)
   );
@@ -166,40 +178,74 @@ function DriverRoutePage() {
 
   const fetchCurrentLocation = useCallback(() => {
     if (isManualLocation) return;
-    if (!navigator.geolocation) {
-      setGeolocationError("Геолокация не поддерживается вашим браузером.");
-      return;
-    }
-    const id = navigator.geolocation.watchPosition(
-      (position) => {
-        const {
-          latitude,
-          longitude,
-          speed: rawSpeed,
-          heading: rawHeading,
-        } = position.coords;
-        const newLocation = [latitude, longitude];
-        let computedHeading = rawHeading;
-        if (
-          (rawHeading === null || isNaN(rawHeading)) &&
-          previousLocationRef.current
-        ) {
-          computedHeading = computeHeading(
-            previousLocationRef.current,
-            newLocation
-          );
-        }
+  
+    // Выносим опции геолокации в константу
+    const geolocationOptions = {
+      enableHighAccuracy: true,
+      maximumAge: 10000,
+      timeout: 20000
+    };
+  
+    const handleSuccess = (position) => {
+      retryCount.current = 0;
+      const {
+        latitude,
+        longitude,
+        speed: rawSpeed,
+        heading: rawHeading,
+      } = position.coords;
+      const newLocation = [latitude, longitude];
+  
+      if (
+        !currentLocation ||
+        haversineDistance(currentLocation, newLocation) > 0.01
+      ) {
         previousLocationRef.current = newLocation;
-        throttledUpdateLocation(newLocation, rawSpeed, computedHeading);
-      },
-      (error) => {
-        setGeolocationError("Не удалось определить местоположение.");
-        console.error("Geolocation error:", error);
-      },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
-    );
-    return () => navigator.geolocation.clearWatch(id);
-  }, [isManualLocation, throttledUpdateLocation]);
+        throttledUpdateLocation(newLocation, rawSpeed, rawHeading);
+      }
+    };
+  
+    const handleError = (error) => {
+      console.error("Geolocation error:", error);
+      
+      // Исправлено: убрано дублирование объявления message
+      let message = "Ошибка получения местоположения";
+      
+      if (error.code === error.TIMEOUT) {
+        if (retryCount.current < 3) {
+          retryCount.current += 1;
+          console.log(`Retrying geolocation (attempt ${retryCount.current})`);
+          return; // Продолжаем попытки
+        }
+        message = "Тайм-аут запроса. Проверьте подключение и разрешите геолокацию";
+      }
+  
+      // Переносим сброс счетчика после обработки ошибки
+      retryCount.current = 0;
+      setGeolocationError(message);
+    };
+  
+    if (navigator.geolocation) {
+      // Очищаем предыдущий watch
+      if (watchId.current) {
+        navigator.geolocation.clearWatch(watchId.current);
+      }
+  
+      // Используем useRef для watchId вместо useState
+      watchId.current = navigator.geolocation.watchPosition(
+        handleSuccess,
+        handleError,
+        geolocationOptions
+      );
+    }
+  }, [
+    isManualLocation, 
+    currentLocation, 
+    throttledUpdateLocation,
+    // Добавляем недостающие зависимости
+    watchId,
+    retryCount
+  ]);
 
   const fetchWeatherData = useCallback(
     throttle(async (coords) => {
@@ -240,12 +286,31 @@ function DriverRoutePage() {
   }, []);
 
   const handleResetLocation = useCallback(() => {
+    // Очищаем watch при сбросе
+    if (watchId.current) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+
     localStorage.removeItem(LOCAL_STORAGE_KEY);
     setIsManualLocation(false);
-    setCurrentLocation(null);
     setSelectedPoint(null);
     setRouteDetails(null);
-  }, []);
+    previousLocationRef.current = null;
+    retryCount.current = 0;
+  
+    // Запускаем новый запрос
+    fetchCurrentLocation();
+  }, [fetchCurrentLocation]);
+
+  // Очистка при размонтировании компонента
+  useEffect(() => {
+    return () => {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [watchId]);
 
   useEffect(() => {
     if (!isManualLocation) fetchCurrentLocation();
@@ -361,7 +426,14 @@ function DriverRoutePage() {
     }
     updateOptimalRoute();
   }, [currentLocation, selectedPoint, weather, routeDetails]);
-
+  useEffect(() => {
+    if (geolocationError && !currentLocation) {
+      const timer = setTimeout(() => {
+        fetchCurrentLocation();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [geolocationError, currentLocation, fetchCurrentLocation]);
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <Header />
@@ -369,7 +441,35 @@ function DriverRoutePage() {
         <h1 className="text-2xl font-semibold text-center text-gray-800 dark:text-gray-200 mb-6">
           Маршруты доставки
         </h1>
-        <div className="mb-4 flex justify-center gap-2 flex-wrap">
+
+        {geolocationError && (
+          <div className="rounded-lg bg-red-100 dark:bg-red-800 p-4 mb-4">
+            <p className="text-red-600 dark:text-red-300">{geolocationError}</p>
+          </div>
+        )}
+        {currentLocation && (
+          <InteractiveMap
+            currentLocation={currentLocation}
+            selectedPoint={selectedPoint}
+            isSettingLocation={isSettingLocation}
+            isNavigationMode={isNavigationMode}
+            userHeading={heading}
+            onSetCurrentLocation={handleSetCurrentLocation}
+            onPointSelected={setSelectedPoint}
+            onRouteDetails={setRouteDetails}
+          />
+        )}
+        {!currentLocation && !isManualLocation && (
+          <div className="mt-4 p-4 bg-yellow-100 dark:bg-yellow-800 rounded-lg">
+            <p>Получаем текущее местоположение...</p>
+          </div>
+        )}
+        {isLocating && (
+          <div className="mt-4 p-4 bg-blue-100 dark:bg-blue-800 rounded-lg">
+            <p>Поиск вашего местоположения...</p>
+          </div>
+        )}
+        <div className="mb-4 mt-4 flex justify-center gap-2 flex-wrap">
           <button
             onClick={() => setIsSettingLocation(!isSettingLocation)}
             className={`px-4 py-2 rounded-lg transition-colors ${
@@ -407,23 +507,16 @@ function DriverRoutePage() {
             </button>
           )}
         </div>
-        {geolocationError && (
-          <div className="rounded-lg bg-red-100 dark:bg-red-800 p-4 mb-4">
-            <p className="text-red-600 dark:text-red-300">{geolocationError}</p>
+        {weather && !weather.error && (
+          <div className="mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
+            <WeatherAnimation
+              weatherId={weather.id}
+              description={weather.description}
+              temperature={weather.temperature}
+            />
           </div>
         )}
-        {currentLocation && (
-          <InteractiveMap
-            currentLocation={currentLocation}
-            selectedPoint={selectedPoint}
-            isSettingLocation={isSettingLocation}
-            isNavigationMode={isNavigationMode}
-            userHeading={heading}
-            onSetCurrentLocation={handleSetCurrentLocation}
-            onPointSelected={setSelectedPoint}
-            onRouteDetails={setRouteDetails}
-          />
-        )}
+
         {speed !== null && (
           <div className="mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
@@ -432,15 +525,6 @@ function DriverRoutePage() {
             <p className="text-gray-600 dark:text-gray-400">
               <strong>Текущая скорость:</strong> {speed} км/ч
             </p>
-          </div>
-        )}
-        {weather && !weather.error && (
-          <div className="mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
-            <WeatherAnimation
-              weatherId={weather.id}
-              description={weather.description}
-              temperature={weather.temperature}
-            />
           </div>
         )}
 

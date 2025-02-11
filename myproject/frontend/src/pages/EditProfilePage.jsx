@@ -116,32 +116,36 @@ function EditProfilePage() {
   };
 
   // Загрузка аватарки на сервер
-  const handleUpload = async () => {
-    if (!croppedBlob) {
-      alert("Сначала выберите и обрежьте изображение!");
-      return;
-    }
-    try {
-      setUploading(true);
-      const token = getToken();
-      const formData = new FormData();
-      formData.append("avatar", croppedBlob, "avatar.jpg");
+// Загрузка аватарки на сервер
+const handleUpload = async () => {
+  if (!croppedBlob) {
+    alert("Сначала выберите и обрежьте изображение!");
+    return;
+  }
+  try {
+    setUploading(true);
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("avatar", croppedBlob, "avatar.jpg");
 
-      const response = await uploadImage(token, formData);
-      if (response.avatar_url) {
-        // Обновляем аватар, полученный с сервера
-        setPreview(response.avatar_url);
-        alert("Аватар успешно обновлён!");
-      } else {
-        throw new Error("Не получен URL аватара");
-      }
-    } catch (error) {
-      console.error("Ошибка загрузки аватара:", error);
-      alert("Ошибка загрузки: " + error.message);
-    } finally {
-      setUploading(false);
+    const response = await uploadImage(token, formData);
+    if (response.avatar_url) {
+      // Обновляем аватар, полученный с сервера
+      setPreview(response.avatar_url);
+      alert("Аватар успешно обновлён!");
+      // Перезагружаем страницу, чтобы отобразить новый аватар
+      window.location.reload();
+    } else {
+      throw new Error("Не получен URL аватара");
     }
-  };
+  } catch (error) {
+    console.error("Ошибка загрузки аватара:", error);
+    alert("Ошибка загрузки: " + error.message);
+  } finally {
+    setUploading(false);
+  }
+};
+
 
   /*** Загрузка данных пользователя при монтировании компонента ***/
   useEffect(() => {
