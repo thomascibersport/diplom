@@ -4,6 +4,7 @@ import WeatherAnimation from "../components/WeatherAnimation";
 import Header from "../components/Header";
 import throttle from "lodash.throttle";
 import { saveRouteRecord } from "../api/auth";
+import MapStore from "../utils/MapStore";
 
 const YANDEX_API_KEY = "f2749db0-14ee-4f82-b043-5bb8082c4aa9";
 const OPEN_WEATHER_API_KEY = "cba05fac32e986f325878b497331cfc8";
@@ -178,14 +179,14 @@ function DriverRoutePage() {
 
   const fetchCurrentLocation = useCallback(() => {
     if (isManualLocation) return;
-  
+
     // Выносим опции геолокации в константу
     const geolocationOptions = {
       enableHighAccuracy: true,
-      maximumAge: 10000,
-      timeout: 20000
+      maximumAge: 0,
+      timeout: 15000,
     };
-  
+
     const handleSuccess = (position) => {
       retryCount.current = 0;
       const {
@@ -195,7 +196,7 @@ function DriverRoutePage() {
         heading: rawHeading,
       } = position.coords;
       const newLocation = [latitude, longitude];
-  
+
       if (
         !currentLocation ||
         haversineDistance(currentLocation, newLocation) > 0.01
@@ -204,33 +205,34 @@ function DriverRoutePage() {
         throttledUpdateLocation(newLocation, rawSpeed, rawHeading);
       }
     };
-  
+
     const handleError = (error) => {
       console.error("Geolocation error:", error);
-      
+
       // Исправлено: убрано дублирование объявления message
       let message = "Ошибка получения местоположения";
-      
+
       if (error.code === error.TIMEOUT) {
         if (retryCount.current < 3) {
           retryCount.current += 1;
           console.log(`Retrying geolocation (attempt ${retryCount.current})`);
           return; // Продолжаем попытки
         }
-        message = "Тайм-аут запроса. Проверьте подключение и разрешите геолокацию";
+        message =
+          "Тайм-аут запроса. Проверьте подключение и разрешите геолокацию";
       }
-  
+
       // Переносим сброс счетчика после обработки ошибки
       retryCount.current = 0;
       setGeolocationError(message);
     };
-  
+
     if (navigator.geolocation) {
       // Очищаем предыдущий watch
       if (watchId.current) {
         navigator.geolocation.clearWatch(watchId.current);
       }
-  
+
       // Используем useRef для watchId вместо useState
       watchId.current = navigator.geolocation.watchPosition(
         handleSuccess,
@@ -239,12 +241,12 @@ function DriverRoutePage() {
       );
     }
   }, [
-    isManualLocation, 
-    currentLocation, 
+    isManualLocation,
+    currentLocation,
     throttledUpdateLocation,
     // Добавляем недостающие зависимости
     watchId,
-    retryCount
+    retryCount,
   ]);
 
   const fetchWeatherData = useCallback(
@@ -277,16 +279,26 @@ function DriverRoutePage() {
     }
   }, [currentLocation, fetchWeatherData]);
 
+  // DriverRoutePage.js
   const handleSetCurrentLocation = useCallback((coords) => {
-    setCurrentLocation(coords);
+    setCurrentLocation([...coords]); // Создаем новый массив для триггера обновления
     setIsManualLocation(true);
     setSelectedPoint(null);
     setRouteDetails(null);
     setIsSettingLocation(false);
+
+    // Форсируем обновление карты
+    setTimeout(() => {
+      const map = MapStore.getMap();
+      if (map) {
+        map.setCenter(coords);
+        map.container.fitToViewport();
+      }
+    }, 100);
   }, []);
 
+  // DriverRoutePage.js
   const handleResetLocation = useCallback(() => {
-    // Очищаем watch при сбросе
     if (watchId.current) {
       navigator.geolocation.clearWatch(watchId.current);
       watchId.current = null;
@@ -294,13 +306,22 @@ function DriverRoutePage() {
 
     localStorage.removeItem(LOCAL_STORAGE_KEY);
     setIsManualLocation(false);
+    setCurrentLocation(null); // Сбрасываем текущее местоположение
     setSelectedPoint(null);
     setRouteDetails(null);
     previousLocationRef.current = null;
     retryCount.current = 0;
-  
-    // Запускаем новый запрос
-    fetchCurrentLocation();
+
+    // Принудительно запрашиваем новое местоположение
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setCurrentLocation([latitude, longitude]);
+        fetchCurrentLocation();
+      },
+      (error) => setGeolocationError("Ошибка получения местоположения"),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   }, [fetchCurrentLocation]);
 
   // Очистка при размонтировании компонента
@@ -434,6 +455,11 @@ function DriverRoutePage() {
       return () => clearTimeout(timer);
     }
   }, [geolocationError, currentLocation, fetchCurrentLocation]);
+  useEffect(() => {
+    return () => {
+      MapStore.destroyMap();
+    };
+  }, []);
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <Header />
@@ -441,7 +467,6 @@ function DriverRoutePage() {
         <h1 className="text-2xl font-semibold text-center text-gray-800 dark:text-gray-200 mb-6">
           Маршруты доставки
         </h1>
-
         {geolocationError && (
           <div className="rounded-lg bg-red-100 dark:bg-red-800 p-4 mb-4">
             <p className="text-red-600 dark:text-red-300">{geolocationError}</p>
@@ -449,6 +474,7 @@ function DriverRoutePage() {
         )}
         {currentLocation && (
           <InteractiveMap
+            key={`${currentLocation?.toString()}_${isManualLocation}`}
             currentLocation={currentLocation}
             selectedPoint={selectedPoint}
             isSettingLocation={isSettingLocation}
@@ -516,7 +542,6 @@ function DriverRoutePage() {
             />
           </div>
         )}
-
         {speed !== null && (
           <div className="mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
@@ -527,7 +552,6 @@ function DriverRoutePage() {
             </p>
           </div>
         )}
-
         {weather && weather.error && (
           <div className="mt-4 p-4 bg-red-100 dark:bg-red-800 rounded-lg shadow">
             <p className="text-red-600 dark:text-red-300">{weather.error}</p>

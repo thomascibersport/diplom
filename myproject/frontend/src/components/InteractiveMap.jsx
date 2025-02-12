@@ -23,29 +23,7 @@ function InteractiveMap({
     isSettingLocationRef.current = isSettingLocation;
   }, [isSettingLocation]);
 
-  const initializeMap = useCallback(() => {
-    if (!window.ymaps) return;
-
-    // Используем координаты по умолчанию, если currentLocation отсутствует
-    const initialCoords = currentLocation || [55.751574, 37.573856]; // Москва
-
-    if (MapStore.getMap()) {
-      MapStore.getMap().setCenter(initialCoords);
-      return;
-    }
-
-    const map = new window.ymaps.Map(mapContainerRef.current, {
-      center: initialCoords,
-      zoom: 14,
-      controls: ["zoomControl", "typeSelector", "fullscreenControl"],
-      suppressMapOpenBlock: true,
-    });
-
-    MapStore.setMap(map);
-    updateCurrentPositionMarker(map);
-    attachEventHandlers(map);
-  }, [currentLocation]);
-
+  // Объявляем функции до их использования
   const updateCurrentPositionMarker = useCallback(
     (map) => {
       if (!currentLocation) return;
@@ -109,7 +87,6 @@ function InteractiveMap({
         }
       );
 
-      // Обработчик успешного построения маршрута
       multiRoute.model.events.add("requestsuccess", () => {
         const activeRoute = multiRoute.getActiveRoute();
         onRouteDetails(
@@ -122,7 +99,6 @@ function InteractiveMap({
         );
       });
 
-      // Обработчик смены активного маршрута (при выборе альтернативного)
       multiRoute.model.events.add("activeroutechange", () => {
         const activeRoute = multiRoute.getActiveRoute();
         onRouteDetails(
@@ -141,7 +117,50 @@ function InteractiveMap({
     [currentLocation, onRouteDetails]
   );
 
-  // При изменении выбранной точки или текущего местоположения обновляем маршрут
+  const attachEventHandlers = useCallback(
+    (map) => {
+      const clickHandler = (e) => {
+        const coords = e.get("coords");
+        if (!coords) return;
+
+        if (isSettingLocationRef.current) {
+          onSetCurrentLocation(coords);
+        } else {
+          onPointSelected(coords);
+        }
+      };
+
+      map.events.add("click", clickHandler);
+      return () => map.events.remove("click", clickHandler);
+    },
+    [onSetCurrentLocation, onPointSelected]
+  );
+
+// InteractiveMap.js
+const initializeMap = useCallback(() => {
+  if (!window.ymaps) return;
+
+  const map = MapStore.getMap();
+  if (map) {
+    // Обновляем существующую карту
+    map.setCenter(currentLocation || [55.751574, 37.573856]);
+    updateCurrentPositionMarker(map);
+    return;
+  }
+
+  // Создаем новую карту
+  const newMap = new window.ymaps.Map(mapContainerRef.current, {
+    center: currentLocation || [55.751574, 37.573856],
+    zoom: 14,
+    controls: ["zoomControl", "typeSelector", "fullscreenControl"],
+    suppressMapOpenBlock: true,
+  });
+
+  MapStore.setMap(newMap);
+  updateCurrentPositionMarker(newMap);
+  attachEventHandlers(newMap);
+}, [currentLocation, updateCurrentPositionMarker, attachEventHandlers]);
+
   useEffect(() => {
     const map = MapStore.getMap();
     if (map && selectedPoint && isNavigationMode) {
@@ -154,7 +173,6 @@ function InteractiveMap({
     }
   }, [currentLocation, isNavigationMode, selectedPoint, buildRoute, onRouteDetails]);
 
-  // Обновляем маркер текущего местоположения и центр карты
   useEffect(() => {
     const map = MapStore.getMap();
     if (map && currentLocation) {
@@ -178,7 +196,6 @@ function InteractiveMap({
     }
   }, [isSettingLocation, currentLocation]);
 
-  // Поворот карты при навигации
   useEffect(() => {
     if (
       mapContainerRef.current &&
@@ -191,29 +208,8 @@ function InteractiveMap({
     }
   }, [userHeading, isNavigationMode]);
 
-  const attachEventHandlers = useCallback(
-    (map) => {
-      const clickHandler = (e) => {
-        const coords = e.get("coords");
-        if (!coords) return;
-
-        if (isSettingLocationRef.current) {
-          onSetCurrentLocation(coords);
-        } else {
-          onPointSelected(coords);
-        }
-      };
-
-      map.events.add("click", clickHandler);
-      return () => map.events.remove("click", clickHandler);
-    },
-    [onSetCurrentLocation, onPointSelected]
-  );
-
   useEffect(() => {
     initializeMap();
-    // В cleanup можно не уничтожать карту, если она должна сохраняться
-    // return () => { /* не уничтожаем карту */ };
   }, [initializeMap]);
 
   useEffect(() => {
@@ -240,28 +236,49 @@ function InteractiveMap({
       }
     }
   }, [selectedPoint, addPoint, buildRoute, onRouteDetails]);
-
+  useEffect(() => {
+    return () => {
+      // Удаляем все объекты с карты перед уничтожением
+      const map = MapStore.getMap();
+      if (map) {
+        map.geoObjects.removeAll();
+        map.destroy();
+      }
+      MapStore.destroyMap();
+    };
+  }, []);
+  useEffect(() => {
+    const handleResize = () => {
+      const map = MapStore.getMap();
+      if (map) {
+        setTimeout(() => map.container.fitToViewport(), 100);
+      }
+    };
+  
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   return (
     <div>
-    <YandexMapLoader onLoad={initializeMap} />
-    <div
-      ref={mapContainerRef}
-      style={{
-        width: "100%",
-        height: "500px",
-        borderRadius: "0.75rem",
-        overflow: "hidden",
-        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-        transition: "transform 0.3s ease-out",
-        opacity: currentLocation ? 1 : 0.7, // Изменяем прозрачность при отсутствии координат
-      }}
-    />
-    {!currentLocation && (
-      <div className="mt-2 text-yellow-600">
-        Ожидание актуальных координат...
-      </div>
-    )}
-  </div>
+      <YandexMapLoader onLoad={initializeMap} />
+      <div
+        ref={mapContainerRef}
+        style={{
+          width: "100%",
+          height: "500px",
+          borderRadius: "0.75rem",
+          overflow: "hidden",
+          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+          transition: "transform 0.3s ease-out",
+          opacity: currentLocation ? 1 : 0.7,
+        }}
+      />
+      {!currentLocation && (
+        <div className="mt-2 text-yellow-600">
+          Ожидание актуальных координат...
+        </div>
+      )}
+    </div>
   );
 }
 
