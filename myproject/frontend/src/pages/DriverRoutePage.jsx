@@ -23,22 +23,7 @@ function haversineDistance([lat1, lon1], [lat2, lon2]) {
   return R * c;
 }
 
-// Функция для вычисления направления (азимута) между двумя координатами
-function computeHeading([lat1, lon1], [lat2, lon2]) {
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const toDeg = (rad) => (rad * 180) / Math.PI;
 
-  const φ1 = toRad(lat1);
-  const φ2 = toRad(lat2);
-  const Δλ = toRad(lon2 - lon1);
-
-  const y = Math.sin(Δλ) * Math.cos(φ2);
-  const x =
-    Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-  let θ = Math.atan2(y, x);
-  let bearing = (toDeg(θ) + 360) % 360;
-  return bearing;
-}
 
 async function getFullAddress(coords) {
   const [lat, lon] = coords;
@@ -87,53 +72,6 @@ async function getFullAddress(coords) {
   }
 }
 
-// Функция для запроса оптимального маршрута через DeepSeek API
-async function fetchOptimalRoute(
-  currentLocation,
-  destination,
-  weather,
-  roadData,
-  trafficData
-) {
-  // Формируем текст запроса (prompt)
-  const prompt = `Построй оптимальный маршрут от точки ${currentLocation} до ${destination}. Погода: ${weather.description} при температуре ${weather.temperature}°C. Дорожная обстановка: ${roadData}. Информация о пробках: ${trafficData}. Укажи примерную дистанцию и время в пути.`;
-
-  // Новый базовый URL для OpenRouter и модель "deepseek/deepseek-r1:free"
-  const endpoint = "https://openrouter.ai/api/v1/chat/completions";
-
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      // Новый API-ключ
-      Authorization:
-        "Bearer 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",
-    },
-    body: JSON.stringify({
-      model: "deepseek/deepseek-r1:free",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Ты – навигационный помощник, который строит оптимальные маршруты с учётом дорожной обстановки, пробок и погодных условий.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      stream: false,
-    }),
-  });
-
-  const data = await response.json();
-  if (!data.choices || data.choices.length === 0) {
-    console.error("Ответ не содержит ожидаемых данных:", data);
-    return null;
-  }
-  return data.choices[0].message.content;
-}
-
 function DriverRoutePage() {
   const [currentLocation, setCurrentLocation] = useState(() => {
     const saved = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY));
@@ -144,7 +82,6 @@ function DriverRoutePage() {
   const [routeDetails, setRouteDetails] = useState(null);
   const [geolocationError, setGeolocationError] = useState(null);
   const [speed, setSpeed] = useState(null);
-  const [heading, setHeading] = useState(null);
   const [isSettingLocation, setIsSettingLocation] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const watchId = useRef(null);
@@ -157,9 +94,73 @@ function DriverRoutePage() {
   const [remainingDistance, setRemainingDistance] = useState(null);
   const [routeStartTime, setRouteStartTime] = useState(null);
   const [routeStartLocation, setRouteStartLocation] = useState(null);
-  // Новое состояние для оптимального маршрута от DeepSeek
-  const [optimalRoute, setOptimalRoute] = useState(null);
-
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const demoPositions = useRef([
+    [55.751244, 37.618423], // Москва, Красная площадь
+    [55.753930, 37.620795], // 200 метров
+    [55.756594, 37.623356]  // 500 метров
+  ]);
+  const demoStep = useRef(0); // Используем ref для сохранения состояния между рендерами
+  const prevDemoCoords = useRef(null); // Сохраняем предыдущие координаты
+  useEffect(() => {
+    if (!isDemoMode) return;
+  
+    const updateDemoLocation = () => {
+      if (demoStep.current >= demoPositions.current.length - 1) {
+        demoStep.current = 0;
+        prevDemoCoords.current = null;
+        return;
+      }
+  
+      const newCoords = demoPositions.current[demoStep.current];
+      const nextCoords = demoPositions.current[demoStep.current + 1];
+  
+      // Рассчет параметров движения (без направления)
+      const distance = haversineDistance(newCoords, nextCoords);
+      const timeDelta = 5; // Интервал в секундах
+      const speed = (distance / (timeDelta / 3600)).toFixed(2); // км/ч
+  
+      // Обновление состояния
+      setCurrentLocation(nextCoords);
+      setSpeed(speed);
+      setIsManualLocation(false);
+  
+      // Подготовка к следующему шагу
+      demoStep.current += 1;
+      prevDemoCoords.current = nextCoords;
+  
+      const timerId = setTimeout(updateDemoLocation, timeDelta * 1000);
+      return () => clearTimeout(timerId);
+    };
+  
+    // Начало демо-режима
+    if (demoStep.current === 0) {
+      setCurrentLocation(demoPositions.current[0]);
+      prevDemoCoords.current = demoPositions.current[0];
+    }
+  
+    const timerId = setTimeout(updateDemoLocation, 5000);
+  
+    return () => {
+      clearTimeout(timerId);
+      demoStep.current = 0;
+      prevDemoCoords.current = null;
+    };
+  }, [isDemoMode]);
+  const throttledUpdateLocation = useCallback(
+    throttle((newLocation, speedValue) => { // Убрали параметр computedHeading
+      setCurrentLocation(newLocation);
+      setSpeed(speedValue ? (speedValue * 3.6).toFixed(2) : 0);
+    }, 1000),
+    []
+  );
+  // Остановка геолокации при включении демо-режима
+  useEffect(() => {
+    if (isDemoMode && watchId.current) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+  }, [isDemoMode]);
   const previousLocationRef = useRef(null);
 
   useEffect(() => {
@@ -168,14 +169,7 @@ function DriverRoutePage() {
     }
   }, [currentLocation, isManualLocation]);
 
-  const throttledUpdateLocation = useCallback(
-    throttle((newLocation, speedValue, computedHeading) => {
-      setCurrentLocation(newLocation);
-      setSpeed(speedValue ? (speedValue * 3.6).toFixed(2) : 0);
-      setHeading(computedHeading);
-    }, 1000),
-    []
-  );
+
 
   const fetchCurrentLocation = useCallback(() => {
     if (isManualLocation) return;
@@ -360,23 +354,37 @@ function DriverRoutePage() {
       alert("Ошибка: отсутствуют данные маршрута");
       return;
     }
+
     const startAddress = await getFullAddress(routeStartLocation);
     const endAddress = await getFullAddress(selectedPoint);
     if (!startAddress || !endAddress) {
       alert("Ошибка получения адресов маршрута");
       return;
     }
+
     const endTime = Date.now();
     const tripDurationMs = endTime - routeStartTime;
+
+    // Форматирование времени поездки
     const seconds = Math.floor((tripDurationMs / 1000) % 60);
     const minutes = Math.floor((tripDurationMs / (1000 * 60)) % 60);
     const hours = Math.floor(tripDurationMs / (1000 * 60 * 60));
     const formattedDuration =
-      (hours < 10 ? "0" + hours : hours) +
-      ":" +
-      (minutes < 10 ? "0" + minutes : minutes) +
-      ":" +
-      (seconds < 10 ? "0" + seconds : seconds);
+      `${hours.toString().padStart(2, "0")}:` +
+      `${minutes.toString().padStart(2, "0")}:` +
+      `${seconds.toString().padStart(2, "0")}`;
+
+    // Расчет средней скорости
+    const parseDistance = (distanceStr) => {
+      if (!distanceStr) return 0;
+      const match = distanceStr.match(/[\d,.]+/);
+      return parseFloat(match ? match[0].replace(",", ".") : "0");
+    };
+
+    const distanceText = routeDetails?.distance || "0 км";
+    const distanceKm = parseDistance(distanceText);
+    const durationHours = tripDurationMs / (1000 * 60 * 60);
+    const averageSpeed = durationHours > 0 ? distanceKm / durationHours : 0;
 
     const routeRecord = {
       start_time: new Date(routeStartTime).toISOString(),
@@ -384,35 +392,35 @@ function DriverRoutePage() {
       start_location: startAddress,
       end_location: endAddress,
       trip_duration: formattedDuration,
-      route_distance: routeDetails?.distance?.toString() || "",
-      route_duration: routeDetails?.duration?.toString() || "",
+      route_distance: distanceText,
+      route_duration: routeDetails?.duration || "",
       weather_description: weather?.description || "",
       weather_temperature: weather?.temperature?.toString() || "",
-      route_distance: routeDetails?.distance || "",
-      route_duration: routeDetails?.duration || "",
-      route_warnings: routeDetails?.warnings?.toString() || "0",
-      weather_code: weather?.id?.toString() || "",
+      average_speed: averageSpeed.toFixed(2),
     };
 
     console.log("Данные для отправки:", routeRecord);
-    const response = await saveRouteRecord(routeRecord);
-    if (!response) {
-      console.error("Ошибка: сервер не вернул ответ.");
-      alert("Ошибка при сохранении маршрута.");
-      return;
-    }
+
     try {
+      const response = await saveRouteRecord(routeRecord);
+      if (!response?.ok) {
+        throw new Error("Ошибка при сохранении маршрута");
+      }
+
       const data = await response.json();
       alert("Маршрут успешно сохранён!");
-    } catch (error) {
-      console.error("Ошибка обработки JSON:", error);
-      alert("Ошибка обработки ответа сервера.");
-    }
-    const storedHistory =
-      JSON.parse(localStorage.getItem("routeHistory")) || [];
-    storedHistory.push(routeRecord);
-    localStorage.setItem("routeHistory", JSON.stringify(storedHistory));
 
+      // Обновление локальной истории
+      const storedHistory =
+        JSON.parse(localStorage.getItem("routeHistory")) || [];
+      storedHistory.push(routeRecord);
+      localStorage.setItem("routeHistory", JSON.stringify(storedHistory));
+    } catch (error) {
+      console.error("Ошибка сохранения:", error);
+      alert(error.message || "Произошла ошибка при сохранении");
+    }
+
+    // Сброс состояния
     setIsNavigationMode(false);
     setRouteStartTime(null);
     setRouteStartLocation(null);
@@ -420,33 +428,6 @@ function DriverRoutePage() {
     setRouteDetails(null);
   };
 
-  // Используем useEffect для вызова DeepSeek API и получения оптимального маршрута,
-  // когда доступны currentLocation, selectedPoint и данные о погоде.
-  useEffect(() => {
-    async function updateOptimalRoute() {
-      if (currentLocation && selectedPoint && weather && !weather.error) {
-        // Если нет реальных данных о состоянии дорог и пробках, используем значения по умолчанию.
-        const roadData = "Хорошие дорожные условия";
-        const trafficData = "Умеренные пробки";
-        try {
-          const optimal = await fetchOptimalRoute(
-            currentLocation.join(", "),
-            selectedPoint.join(", "),
-            weather,
-            roadData,
-            trafficData
-          );
-          setOptimalRoute(optimal);
-        } catch (err) {
-          console.error(
-            "Ошибка получения оптимального маршрута от DeepSeek:",
-            err
-          );
-        }
-      }
-    }
-    updateOptimalRoute();
-  }, [currentLocation, selectedPoint, weather, routeDetails]);
   useEffect(() => {
     if (geolocationError && !currentLocation) {
       const timer = setTimeout(() => {
@@ -479,7 +460,6 @@ function DriverRoutePage() {
             selectedPoint={selectedPoint}
             isSettingLocation={isSettingLocation}
             isNavigationMode={isNavigationMode}
-            userHeading={heading}
             onSetCurrentLocation={handleSetCurrentLocation}
             onPointSelected={setSelectedPoint}
             onRouteDetails={setRouteDetails}
@@ -507,6 +487,12 @@ function DriverRoutePage() {
             {isSettingLocation
               ? "Завершить выбор местоположения"
               : "Установить мое местоположение"}
+          </button>
+          <button
+            onClick={() => setIsDemoMode(!isDemoMode)}
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg"
+          >
+            {isDemoMode ? "Выключить демо-режим" : "Включить демо-режим"}
           </button>
           {isManualLocation && (
             <button
@@ -552,6 +538,7 @@ function DriverRoutePage() {
             </p>
           </div>
         )}
+
         {weather && weather.error && (
           <div className="mt-4 p-4 bg-red-100 dark:bg-red-800 rounded-lg shadow">
             <p className="text-red-600 dark:text-red-300">{weather.error}</p>
@@ -585,14 +572,7 @@ function DriverRoutePage() {
             </p>
           </div>
         )}
-        {optimalRoute && (
-          <div className="mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-              Оптимальный маршрут от DeepSeek
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400">{optimalRoute}</p>
-          </div>
-        )}
+
         {isNavigationMode && selectedPoint && (
           <div className="mt-4 p-4 bg-green-100 dark:bg-green-800 rounded-lg shadow">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">

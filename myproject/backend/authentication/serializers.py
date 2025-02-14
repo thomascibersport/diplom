@@ -61,9 +61,10 @@ class RouteRecordSerializer(serializers.ModelSerializer):
             'route_duration',
             'weather_description',
             'weather_temperature',
+            'average_speed',  # Новое поле
             'created_at'
         ]
-        read_only_fields = ['user', 'created_at']
+        read_only_fields = []
         extra_kwargs = {
             'start_time': {'required': True},
             'end_time': {'required': True},

@@ -196,17 +196,7 @@ const initializeMap = useCallback(() => {
     }
   }, [isSettingLocation, currentLocation]);
 
-  useEffect(() => {
-    if (
-      mapContainerRef.current &&
-      isNavigationMode &&
-      typeof userHeading === "number"
-    ) {
-      mapContainerRef.current.style.transform = `rotate(${-userHeading}deg)`;
-    } else if (mapContainerRef.current) {
-      mapContainerRef.current.style.transform = "";
-    }
-  }, [userHeading, isNavigationMode]);
+
 
   useEffect(() => {
     initializeMap();
@@ -269,7 +259,6 @@ const initializeMap = useCallback(() => {
           borderRadius: "0.75rem",
           overflow: "hidden",
           boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-          transition: "transform 0.3s ease-out",
           opacity: currentLocation ? 1 : 0.7,
         }}
       />

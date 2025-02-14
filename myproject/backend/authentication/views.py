@@ -149,6 +149,8 @@ class RouteRecordCreateView(APIView):
             return Response({"message": "Маршрут сохранён", "data": serializer.data}, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        
 class RouteRecordListView(APIView):
     permission_classes = [IsAuthenticated]
 

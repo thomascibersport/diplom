@@ -62,59 +62,22 @@ function RouteHistoryPage() {
   useEffect(() => {
     async function fetchLocations() {
       const locs = { ...locations };
-      // Проходим по каждому маршруту
+      
       for (const route of routeHistory) {
-        // Проверяем корректность и наличие start_location
+        // Для start_location (просто сохраняем значение как есть)
         if (route.start_location && !locs[route.start_location]) {
-          const coords = route.start_location.split(",");
-          if (coords.length === 2) {
-            const [lat, lon] = coords;
-            if (lat && lon) {
-              locs[route.start_location] = await getDetailedAddress(
-                lat.trim(),
-                lon.trim()
-              );
-            } else {
-              console.error(
-                "Отсутствует значение широты или долготы для start_location:",
-                route.start_location
-              );
-            }
-          } else {
-            console.error(
-              "Неверный формат координат для start_location:",
-              route.start_location
-            );
-          }
+          locs[route.start_location] = route.start_location; // Используем готовый адрес
         }
-        // Аналогичная проверка для end_location
+        
+        // Для end_location (аналогично)
         if (route.end_location && !locs[route.end_location]) {
-          const coords = route.end_location.split(",");
-          if (coords.length === 2) {
-            const [lat, lon] = coords;
-            if (lat && lon) {
-              locs[route.end_location] = await getDetailedAddress(
-                lat.trim(),
-                lon.trim()
-              );
-            } else {
-              console.error(
-                "Отсутствует значение широты или долготы для end_location:",
-                route.end_location
-              );
-            }
-          } else {
-            console.error(
-              "Неверный формат координат для end_location:",
-              route.end_location
-            );
-          }
+          locs[route.end_location] = route.end_location;
         }
       }
+      
       setLocations(locs);
     }
-
-    // Если маршруты уже загружены, запускаем получение подробных адресов
+  
     if (routeHistory.length > 0) {
       fetchLocations();
     }
@@ -160,6 +123,7 @@ function RouteHistoryPage() {
                   🚗 <strong>Время в пути:</strong> {route.trip_duration} | 🛣️{" "}
                   <strong>Расстояние:</strong> {route.route_distance}
                 </p>
+                <p>Средняя скорость: {route.average_speed} км/ч</p>
                 {route.weather_description && (
                   <p className="text-gray-700 dark:text-gray-300">
                     ⛅ <strong>Погода:</strong> {route.weather_description} | 🌡️{" "}
