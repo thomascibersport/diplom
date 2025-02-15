@@ -15,6 +15,15 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
 from django.http import JsonResponse, HttpResponseBadRequest
+from django.db.models import Avg, Max, Min, Count
+from django.db.models.functions import TruncDate
+from django.db.models import Avg, Max, Min, Count, Sum, FloatField, Value
+from django.db.models.functions import Cast, Coalesce, TruncDate
+
+
+
+
+
 
 
 User = get_user_model()
@@ -214,3 +223,72 @@ def deepseek_routing_proxy(request):
             return HttpResponseBadRequest(f"Ошибка: {str(e)}")
     else:
         return HttpResponseBadRequest("Метод запроса должен быть POST")
+class StatisticsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Выбираем все маршруты текущего пользователя
+        user_routes = RouteRecord.objects.filter(user=request.user)
+
+        # Отфильтровываем записи, где поля для агрегирования пустые
+        numeric_routes = user_routes.exclude(average_speed__exact='') \
+                                      .exclude(route_distance__exact='') \
+                                      .exclude(trip_duration__exact='')
+
+        # Оборачиваем агрегаты дополнительным Cast, чтобы результат гарантированно был Float
+        numeric_stats = numeric_routes.aggregate(
+            average_speed=Coalesce(
+                Cast(Avg(Cast('average_speed', FloatField())), FloatField()),
+                Value(0.0, output_field=FloatField()),
+                output_field=FloatField()
+            ),
+            max_distance=Coalesce(
+                Cast(Max(Cast('route_distance', FloatField())), FloatField()),
+                Value(0.0, output_field=FloatField()),
+                output_field=FloatField()
+            ),
+            fastest_delivery=Coalesce(
+                Cast(Min(Cast('trip_duration', FloatField())), FloatField()),
+                Value(0.0, output_field=FloatField()),
+                output_field=FloatField()
+            ),
+            total_distance=Coalesce(
+                Cast(Sum(Cast('route_distance', FloatField())), FloatField()),
+                Value(0.0, output_field=FloatField()),
+                output_field=FloatField()
+            )
+        )
+
+        # Общее количество доставок считаем по всем маршрутам
+        total_deliveries = user_routes.count()
+
+        # Группировка по конечному местоположению для определения региона с наибольшим числом заказов
+        region_stats = user_routes.values('end_location').annotate(
+            count=Count('id')
+        ).order_by('-count')
+        most_delivered_region = region_stats[0] if region_stats else {"end_location": "N/A", "count": 0}
+
+        # Данные для графика: группировка доставок по дате создания
+        deliveries_by_day = user_routes.annotate(day=TruncDate('created_at')).values('day').annotate(
+            count=Count('id')
+        ).order_by('day')
+
+        chart_data = [
+            {"day": route['day'].strftime("%d.%m"), "count": route['count']}
+            for route in deliveries_by_day
+        ]
+
+        data = {
+            "average_speed": round(numeric_stats["average_speed"], 2),
+            "farthest_route": {
+                "distance": numeric_stats["max_distance"],
+            },
+            "fastest_delivery": {
+                "duration": numeric_stats["fastest_delivery"],
+            },
+            "most_delivered_region": most_delivered_region["end_location"],
+            "total_deliveries": total_deliveries,
+            "total_distance": round(numeric_stats["total_distance"], 2),
+            "deliveries_chart": chart_data
+        }
+        return Response(data)

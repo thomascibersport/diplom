@@ -13,7 +13,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from .views import RouteRecordListView
 from .views import RouteRecordListView, RouteRecordDeleteView
-from .views import proxy_deepseek
+from .views import StatisticsView
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
     path("user/", CurrentUserView.as_view(), name="user"),
@@ -27,7 +27,7 @@ urlpatterns = [
     path('api/route-records/', RouteRecordListView.as_view(), name='route_record_list'),
     path('api/routes/', RouteRecordListView.as_view(), name='route-record-list'),
     path('api/routes/<int:pk>/', RouteRecordDeleteView.as_view(), name='route-record-delete'),
-    path('api/proxy-deepseek/', proxy_deepseek),
+    path('api/statistics/', StatisticsView.as_view(), name='statistics'),
 ]
 
 if settings.DEBUG:

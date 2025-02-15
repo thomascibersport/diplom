@@ -20,12 +20,15 @@ from django.conf.urls.static import static
 from authentication.views import RouteRecordCreateView
 from authentication.views import RouteRecordListView
 from authentication.views import proxy_deepseek
+from authentication.views import StatisticsView
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/authentication/', include('authentication.urls')),
     path("api/authentication/routes/", RouteRecordCreateView.as_view(), name="route_record_create"),
     path('api/route-records/', RouteRecordListView.as_view(), name='route_record_list'),
     path('api/proxy-deepseek/', proxy_deepseek),
+    path('api/statistics/', StatisticsView.as_view(), name='statistics'),
     
 ]
 if settings.DEBUG:
