@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { register } from "../api/auth";
 import { isAuthenticated } from "../utils/auth";
 import InputMask from "react-input-mask";
-import Header from "../components/Header";
+import Header from "../components/Header"; // Импортируем Header
 
 function Register() {
   const [error, setError] = useState(null);
@@ -17,6 +17,7 @@ function Register() {
     phone: "",
     password: "",
     confirmPassword: "",
+    agreeToTerms: false,
   });
 
   const handleInputChange = (e) => {
@@ -129,180 +130,183 @@ function Register() {
   };
 
   return (
-    
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6 text-center">
-          Регистрация
-        </h1>
-        {error && (
-          <div className="bg-red-100 text-red-800 px-4 py-2 rounded mb-4 text-sm">
-            {error}
-          </div>
-        )}
-        <form onSubmit={handleSubmit}>
-          {/* Фамилия */}
-          <div className="mb-4">
-            <label className="block text-gray-700 dark:text-gray-300 mb-2">
-              Фамилия
-            </label>
-            <input
-              type="text"
-              name="lastName"
-              value={userData.lastName}
-              onChange={handleInputChange}
-              required
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
-            />
-          </div>
-          {/* Имя */}
-          <div className="mb-4">
-            <label className="block text-gray-700 dark:text-gray-300 mb-2">
-              Имя
-            </label>
-            <input
-              type="text"
-              name="firstName"
-              value={userData.firstName}
-              onChange={handleInputChange}
-              required
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
-            />
-          </div>
-          {/* Отчество */}
-          <div className="mb-4">
-            <label className="block text-gray-700 dark:text-gray-300 mb-2">
-              Отчество
-            </label>
-            <input
-              type="text"
-              name="middleName"
-              value={userData.middleName}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
-            />
-          </div>
-          {/* Логин */}
-          <div className="mb-4">
-            <label className="block text-gray-700 dark:text-gray-300 mb-2">
-              Логин
-            </label>
-            <input
-              type="text"
-              name="login"
-              value={userData.login}
-              onChange={handleInputChange}
-              required
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
-            />
-          </div>
-          {/* Email */}
-          <div className="mb-4">
-            <label className="block text-gray-700 dark:text-gray-300 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={userData.email}
-              onChange={handleInputChange}
-              required
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
-            />
-          </div>
-          {/* Телефон */}
-          <div className="mb-4">
-            <label className="block text-gray-700 dark:text-gray-300 mb-2">
-              Телефон
-            </label>
-            <InputMask
-              mask="+7 (999) 999-99-99"
-              name="phone"
-              value={userData.phone}
-              onChange={handleInputChange}
-              required
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
-            />
-          </div>
-          {/* Пароль */}
-          <div className="mb-4">
-            <label className="block text-gray-700 dark:text-gray-300 mb-2">
-              Пароль
-            </label>
-            <div className="relative">
+    <>
+      {/* Интегрированная шапка */}
+      <Header />
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center pt-16">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6 text-center">
+            Регистрация
+          </h1>
+          {error && (
+            <div className="bg-red-100 text-red-800 px-4 py-2 rounded mb-4 text-sm">
+              {error}
+            </div>
+          )}
+          <form onSubmit={handleSubmit}>
+            {/* Фамилия */}
+            <div className="mb-4">
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">
+                Фамилия
+              </label>
               <input
-                type={showPassword ? "text" : "password"}
-                name="password"
-                value={userData.password}
+                type="text"
+                name="lastName"
+                value={userData.lastName}
                 onChange={handleInputChange}
                 required
                 className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 px-3 py-2"
-              >
-                {showPassword ? "Скрыть" : "Показать"}
-              </button>
             </div>
-          </div>
-          {/* Подтверждение пароля */}
-          <div className="mb-4">
-            <label className="block text-gray-700 dark:text-gray-300 mb-2">
-              Подтверждение пароля
-            </label>
-            <div className="relative">
+            {/* Имя */}
+            <div className="mb-4">
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">
+                Имя
+              </label>
               <input
-                type={showConfirmPassword ? "text" : "password"}
-                name="confirmPassword"
-                value={userData.confirmPassword}
+                type="text"
+                name="firstName"
+                value={userData.firstName}
                 onChange={handleInputChange}
                 required
                 className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
               />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute inset-y-0 right-0 px-3 py-2"
-              >
-                {showConfirmPassword ? "Скрыть" : "Показать"}
-              </button>
             </div>
-          </div>
-          {/* Чекбокс согласия */}
-          <div className="mb-6">
-            <label className="flex items-center">
+            {/* Отчество */}
+            <div className="mb-4">
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">
+                Отчество
+              </label>
               <input
-                type="checkbox"
-                name="agreeToTerms"
-                checked={userData.agreeToTerms}
-                onChange={(e) =>
-                  setUserData({ ...userData, agreeToTerms: e.target.checked })
-                }
-                className="mr-2"
+                type="text"
+                name="middleName"
+                value={userData.middleName}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
               />
-              <span className="text-gray-700 dark:text-gray-300">
-                Согласен на обработку данных
-              </span>
-            </label>
-          </div>
-          {/* Кнопка отправки */}
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
-          >
-            Зарегистрироваться
-          </button>
-        </form>
-        <p className="mt-4 text-center text-gray-600 dark:text-gray-400">
-          Уже есть аккаунт?{" "}
-          <a href="/login" className="text-blue-600 hover:underline">
-            Войти
-          </a>
-        </p>
+            </div>
+            {/* Логин */}
+            <div className="mb-4">
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">
+                Логин
+              </label>
+              <input
+                type="text"
+                name="login"
+                value={userData.login}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
+              />
+            </div>
+            {/* Email */}
+            <div className="mb-4">
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={userData.email}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
+              />
+            </div>
+            {/* Телефон */}
+            <div className="mb-4">
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">
+                Телефон
+              </label>
+              <InputMask
+                mask="+7 (999) 999-99-99"
+                name="phone"
+                value={userData.phone}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
+              />
+            </div>
+            {/* Пароль */}
+            <div className="mb-4">
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">
+                Пароль
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={userData.password}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 px-3 py-2"
+                >
+                  {showPassword ? "Скрыть" : "Показать"}
+                </button>
+              </div>
+            </div>
+            {/* Подтверждение пароля */}
+            <div className="mb-4">
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">
+                Подтверждение пароля
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  value={userData.confirmPassword}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-0 px-3 py-2"
+                >
+                  {showConfirmPassword ? "Скрыть" : "Показать"}
+                </button>
+              </div>
+            </div>
+            {/* Чекбокс согласия */}
+            <div className="mb-6">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="agreeToTerms"
+                  checked={userData.agreeToTerms}
+                  onChange={(e) =>
+                    setUserData({ ...userData, agreeToTerms: e.target.checked })
+                  }
+                  className="mr-2"
+                />
+                <span className="text-gray-700 dark:text-gray-300">
+                  Согласен на обработку данных
+                </span>
+              </label>
+            </div>
+            {/* Кнопка отправки */}
+            <button
+              type="submit"
+              className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
+            >
+              Зарегистрироваться
+            </button>
+          </form>
+          <p className="mt-4 text-center text-gray-600 dark:text-gray-400">
+            Уже есть аккаунт?{" "}
+            <a href="/login" className="text-blue-600 hover:underline">
+              Войти
+            </a>
+          </p>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

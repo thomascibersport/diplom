@@ -223,12 +223,8 @@ class StatisticsView(APIView):
     permission_classes = [AllowAny]
     
     def get(self, request):
-        user = request.user
-        # Если пользователь не авторизован, выбираем все маршруты для статистики
-        if not user.is_authenticated:
-            routes = RouteRecord.objects.all()
-        else:
-            routes = RouteRecord.objects.filter(user=user)
+        # Получаем все маршруты, независимо от того, авторизован пользователь или нет
+        routes = RouteRecord.objects.all()
         
         numeric_routes = routes.exclude(average_speed__exact='') \
                                 .exclude(route_distance__exact='') \
@@ -256,10 +252,20 @@ class StatisticsView(APIView):
             )
         )
         total_deliveries = routes.count()
-        region_stats = routes.values('end_location').annotate(
-            count=Count('id')
-        ).order_by('-count')
-        most_delivered_region = region_stats[0] if region_stats else {"end_location": "N/A", "count": 0}
+        
+        # Группировка маршрутов по городу (извлекаем город из end_location)
+        city_counts = {}
+        for route in routes:
+            address = route.end_location
+            if address:
+                city = address.split(',')[0].strip()
+                city_counts[city] = city_counts.get(city, 0) + 1
+        
+        if city_counts:
+            most_delivered_region = max(city_counts.items(), key=lambda x: x[1])[0]
+        else:
+            most_delivered_region = "N/A"
+        
         deliveries_by_day = routes.annotate(day=TruncDate('created_at')).values('day').annotate(
             count=Count('id')
         ).order_by('day')
@@ -275,9 +281,10 @@ class StatisticsView(APIView):
             "fastest_delivery": {
                 "duration": numeric_stats["fastest_delivery"],
             },
-            "most_delivered_region": most_delivered_region["end_location"],
+            "most_delivered_region": most_delivered_region,
             "total_deliveries": total_deliveries,
             "total_distance": round(numeric_stats["total_distance"], 2),
             "deliveries_chart": chart_data
         }
         return Response(data)
+

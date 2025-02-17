@@ -22,7 +22,29 @@ function InteractiveMap({
   useEffect(() => {
     isSettingLocationRef.current = isSettingLocation;
   }, [isSettingLocation]);
-
+  const InteractiveMap = ({ onMapReady }) => {
+    const mapContainerRef = useRef(null);
+  
+    useEffect(() => {
+      if (!window.ymaps) {
+        console.error("Яндекс API не загружен");
+        return;
+      }
+      window.ymaps.ready(() => {
+        if (mapContainerRef.current) {
+          const map = new window.ymaps.Map(mapContainerRef.current, {
+            center: [55.76, 37.64],
+            zoom: 10,
+          });
+          if (onMapReady) {
+            onMapReady(map);
+          }
+        } else {
+          console.error("Контейнер карты не найден");
+        }
+      });
+    }, [onMapReady]);
+  }
   // Объявляем функции до их использования
   const updateCurrentPositionMarker = useCallback(
     (map) => {
