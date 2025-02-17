@@ -105,7 +105,11 @@ function EditProfilePage() {
       return;
     }
     try {
-      const blob = await getCroppedImg(imageRef.current, completedCrop, "avatar.jpg");
+      const blob = await getCroppedImg(
+        imageRef.current,
+        completedCrop,
+        "avatar.jpg"
+      );
       setCroppedBlob(blob);
       setCroppedPreview(URL.createObjectURL(blob));
       alert("Изображение готово к загрузке!");
@@ -116,36 +120,35 @@ function EditProfilePage() {
   };
 
   // Загрузка аватарки на сервер
-// Загрузка аватарки на сервер
-const handleUpload = async () => {
-  if (!croppedBlob) {
-    alert("Сначала выберите и обрежьте изображение!");
-    return;
-  }
-  try {
-    setUploading(true);
-    const token = getToken();
-    const formData = new FormData();
-    formData.append("avatar", croppedBlob, "avatar.jpg");
-
-    const response = await uploadImage(token, formData);
-    if (response.avatar_url) {
-      // Обновляем аватар, полученный с сервера
-      setPreview(response.avatar_url);
-      alert("Аватар успешно обновлён!");
-      // Перезагружаем страницу, чтобы отобразить новый аватар
-      window.location.reload();
-    } else {
-      throw new Error("Не получен URL аватара");
+  // Загрузка аватарки на сервер
+  const handleUpload = async () => {
+    if (!croppedBlob) {
+      alert("Сначала выберите и обрежьте изображение!");
+      return;
     }
-  } catch (error) {
-    console.error("Ошибка загрузки аватара:", error);
-    alert("Ошибка загрузки: " + error.message);
-  } finally {
-    setUploading(false);
-  }
-};
+    try {
+      setUploading(true);
+      const token = getToken();
+      const formData = new FormData();
+      formData.append("avatar", croppedBlob, "avatar.jpg");
 
+      const response = await uploadImage(token, formData);
+      if (response.avatar_url) {
+        // Обновляем аватар, полученный с сервера
+        setPreview(response.avatar_url);
+        alert("Аватар успешно обновлён!");
+        // Перезагружаем страницу, чтобы отобразить новый аватар
+        window.location.reload();
+      } else {
+        throw new Error("Не получен URL аватара");
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки аватара:", error);
+      alert("Ошибка загрузки: " + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   /*** Загрузка данных пользователя при монтировании компонента ***/
   useEffect(() => {
@@ -231,7 +234,9 @@ const handleUpload = async () => {
       setConfirmNewPassword("");
     } catch (err) {
       console.error("Ошибка смены пароля:", err);
-      alert("Не удалось изменить пароль. Проверьте правильность ввода старого пароля.");
+      alert(
+        "Не удалось изменить пароль. Проверьте правильность ввода старого пароля."
+      );
     }
   };
 
@@ -271,8 +276,7 @@ const handleUpload = async () => {
           <div className="mb-4">
             <label
               htmlFor="avatarFile"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Выберите изображение
             </label>
             <input
@@ -280,15 +284,8 @@ const handleUpload = async () => {
               type="file"
               accept="image/*"
               onChange={handleFileChange}
-              className="block w-full text-sm text-gray-500
-                         file:mr-4 file:py-2 file:px-4
-                         file:rounded-md file:border-0
-                         file:text-sm file:font-semibold
-                         file:bg-blue-50 file:text-blue-700
-                         hover:file:bg-blue-100"
-            />
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
           </div>
-
           {src && (
             <div className="mb-4">
               <ReactCrop
@@ -453,7 +450,9 @@ const handleUpload = async () => {
               />
               <button
                 type="button"
-                onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                onClick={() =>
+                  setShowConfirmNewPassword(!showConfirmNewPassword)
+                }
                 className="absolute inset-y-0 right-0 px-3 py-2"
               >
                 {showConfirmNewPassword ? "👁️" : "👁️‍🗨️"}

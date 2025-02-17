@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { register } from "../api/auth";
 import { isAuthenticated } from "../utils/auth";
 import InputMask from "react-input-mask";
+import Header from "../components/Header";
 
 function Register() {
   const [error, setError] = useState(null);
@@ -128,6 +129,7 @@ function Register() {
   };
 
   return (
+    
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6 text-center">
@@ -153,7 +155,6 @@ function Register() {
               className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
             />
           </div>
-
           {/* Имя */}
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 mb-2">
@@ -168,7 +169,6 @@ function Register() {
               className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
             />
           </div>
-
           {/* Отчество */}
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 mb-2">
@@ -182,7 +182,6 @@ function Register() {
               className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
             />
           </div>
-
           {/* Логин */}
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 mb-2">
@@ -197,7 +196,6 @@ function Register() {
               className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
             />
           </div>
-
           {/* Email */}
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 mb-2">
@@ -212,7 +210,6 @@ function Register() {
               className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
             />
           </div>
-
           {/* Телефон */}
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 mb-2">
@@ -227,7 +224,6 @@ function Register() {
               className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300"
             />
           </div>
-
           {/* Пароль */}
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 mb-2">
@@ -251,7 +247,6 @@ function Register() {
               </button>
             </div>
           </div>
-
           {/* Подтверждение пароля */}
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 mb-2">
@@ -275,7 +270,6 @@ function Register() {
               </button>
             </div>
           </div>
-
           {/* Чекбокс согласия */}
           <div className="mb-6">
             <label className="flex items-center">
@@ -293,7 +287,6 @@ function Register() {
               </span>
             </label>
           </div>
-
           {/* Кнопка отправки */}
           <button
             type="submit"

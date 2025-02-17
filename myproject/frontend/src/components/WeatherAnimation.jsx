@@ -1,5 +1,4 @@
 import React from "react";
-
 const WeatherAnimation = ({ weatherId, description, temperature }) => {
   const getWeatherIcon = (id) => {
     if (id >= 200 && id < 300) return "🌩"; // Гроза
@@ -10,7 +9,6 @@ const WeatherAnimation = ({ weatherId, description, temperature }) => {
     if (id > 800) return "☁"; // Облачно
     return "❓"; // Неизвестно
   };
-
   return (
     <div className="flex items-center space-x-4">
       <div className="text-4xl">{getWeatherIcon(weatherId)}</div>
@@ -25,6 +23,4 @@ const WeatherAnimation = ({ weatherId, description, temperature }) => {
     </div>
   );
 };
-
-// Добавляем экспорт по умолчанию
 export default WeatherAnimation;

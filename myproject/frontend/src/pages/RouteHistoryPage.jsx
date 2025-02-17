@@ -62,22 +62,22 @@ function RouteHistoryPage() {
   useEffect(() => {
     async function fetchLocations() {
       const locs = { ...locations };
-      
+
       for (const route of routeHistory) {
         // Для start_location (просто сохраняем значение как есть)
         if (route.start_location && !locs[route.start_location]) {
           locs[route.start_location] = route.start_location; // Используем готовый адрес
         }
-        
+
         // Для end_location (аналогично)
         if (route.end_location && !locs[route.end_location]) {
           locs[route.end_location] = route.end_location;
         }
       }
-      
+
       setLocations(locs);
     }
-  
+
     if (routeHistory.length > 0) {
       fetchLocations();
     }
@@ -102,10 +102,7 @@ function RouteHistoryPage() {
         ) : (
           <ul className="space-y-4">
             {routeHistory.map((route, index) => (
-              <li
-                key={index}
-                className="p-4 border rounded-lg bg-white dark:bg-gray-800 shadow flex flex-col"
-              >
+              <li key={index} className="p-4 border rounded-lg bg-white dark:bg-gray-800 shadow flex flex-col">
                 <p className="font-semibold text-lg">Маршрут {index + 1}</p>
                 <p className="text-gray-700 dark:text-gray-300">
                   🕒{" "}
@@ -118,7 +115,6 @@ function RouteHistoryPage() {
                   📍 <strong>Откуда:</strong> {route.start_location} ➡️{" "}
                   <strong>Куда:</strong> {route.end_location}
                 </p>
-
                 <p className="text-gray-700 dark:text-gray-300">
                   🚗 <strong>Время в пути:</strong> {route.trip_duration} | 🛣️{" "}
                   <strong>Расстояние:</strong> {route.route_distance}

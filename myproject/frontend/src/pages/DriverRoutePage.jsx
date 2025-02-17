@@ -5,6 +5,7 @@ import Header from "../components/Header";
 import throttle from "lodash.throttle";
 import { saveRouteRecord } from "../api/auth";
 import MapStore from "../utils/MapStore";
+import Cookies from "js-cookie"; // Импорт для проверки токена
 
 const YANDEX_API_KEY = "f2749db0-14ee-4f82-b043-5bb8082c4aa9";
 const OPEN_WEATHER_API_KEY = "cba05fac32e986f325878b497331cfc8";
@@ -23,8 +24,6 @@ function haversineDistance([lat1, lon1], [lat2, lon2]) {
   return R * c;
 }
 
-
-
 async function getFullAddress(coords) {
   const [lat, lon] = coords;
   try {
@@ -35,7 +34,6 @@ async function getFullAddress(coords) {
       data.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject;
     if (geoObject) {
       const addressMeta = geoObject.metaDataProperty.GeocoderMetaData.Address;
-      console.log("Components:", addressMeta.Components);
       const cityComponent =
         addressMeta.Components.find((comp) => comp.kind === "locality") ||
         addressMeta.Components.find((comp) => comp.kind === "province");
@@ -73,6 +71,9 @@ async function getFullAddress(coords) {
 }
 
 function DriverRoutePage() {
+  // Проверяем наличие токена в куках: если токена нет – пользователь считается гостем
+  const isAuthenticated = Boolean(Cookies.get("token"));
+
   const [currentLocation, setCurrentLocation] = useState(() => {
     const saved = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY));
     return saved || null;
@@ -85,7 +86,6 @@ function DriverRoutePage() {
   const [isSettingLocation, setIsSettingLocation] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const watchId = useRef(null);
-  const setWatchId = useRef(null);
   const retryCount = useRef(0);
   const [isManualLocation, setIsManualLocation] = useState(
     !!localStorage.getItem(LOCAL_STORAGE_KEY)
@@ -96,12 +96,13 @@ function DriverRoutePage() {
   const [routeStartLocation, setRouteStartLocation] = useState(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const demoPositions = useRef([
-    [55.751244, 37.618423], // Москва, Красная площадь
-    [55.753930, 37.620795], // 200 метров
-    [55.756594, 37.623356]  // 500 метров
+    [55.751244, 37.618423],
+    [55.753930, 37.620795],
+    [55.756594, 37.623356]
   ]);
-  const demoStep = useRef(0); // Используем ref для сохранения состояния между рендерами
-  const prevDemoCoords = useRef(null); // Сохраняем предыдущие координаты
+  const demoStep = useRef(0);
+  const prevDemoCoords = useRef(null);
+
   useEffect(() => {
     if (!isDemoMode) return;
   
@@ -115,17 +116,14 @@ function DriverRoutePage() {
       const newCoords = demoPositions.current[demoStep.current];
       const nextCoords = demoPositions.current[demoStep.current + 1];
   
-      // Рассчет параметров движения (без направления)
       const distance = haversineDistance(newCoords, nextCoords);
-      const timeDelta = 5; // Интервал в секундах
-      const speed = (distance / (timeDelta / 3600)).toFixed(2); // км/ч
+      const timeDelta = 5;
+      const speed = (distance / (timeDelta / 3600)).toFixed(2);
   
-      // Обновление состояния
       setCurrentLocation(nextCoords);
       setSpeed(speed);
       setIsManualLocation(false);
   
-      // Подготовка к следующему шагу
       demoStep.current += 1;
       prevDemoCoords.current = nextCoords;
   
@@ -133,7 +131,6 @@ function DriverRoutePage() {
       return () => clearTimeout(timerId);
     };
   
-    // Начало демо-режима
     if (demoStep.current === 0) {
       setCurrentLocation(demoPositions.current[0]);
       prevDemoCoords.current = demoPositions.current[0];
@@ -147,14 +144,15 @@ function DriverRoutePage() {
       prevDemoCoords.current = null;
     };
   }, [isDemoMode]);
+
   const throttledUpdateLocation = useCallback(
-    throttle((newLocation, speedValue) => { // Убрали параметр computedHeading
+    throttle((newLocation, speedValue) => {
       setCurrentLocation(newLocation);
       setSpeed(speedValue ? (speedValue * 3.6).toFixed(2) : 0);
     }, 1000),
     []
   );
-  // Остановка геолокации при включении демо-режима
+
   useEffect(() => {
     if (isDemoMode && watchId.current) {
       navigator.geolocation.clearWatch(watchId.current);
@@ -169,12 +167,9 @@ function DriverRoutePage() {
     }
   }, [currentLocation, isManualLocation]);
 
-
-
   const fetchCurrentLocation = useCallback(() => {
     if (isManualLocation) return;
 
-    // Выносим опции геолокации в константу
     const geolocationOptions = {
       enableHighAccuracy: true,
       maximumAge: 0,
@@ -183,12 +178,7 @@ function DriverRoutePage() {
 
     const handleSuccess = (position) => {
       retryCount.current = 0;
-      const {
-        latitude,
-        longitude,
-        speed: rawSpeed,
-        heading: rawHeading,
-      } = position.coords;
+      const { latitude, longitude, speed: rawSpeed } = position.coords;
       const newLocation = [latitude, longitude];
 
       if (
@@ -196,52 +186,38 @@ function DriverRoutePage() {
         haversineDistance(currentLocation, newLocation) > 0.01
       ) {
         previousLocationRef.current = newLocation;
-        throttledUpdateLocation(newLocation, rawSpeed, rawHeading);
+        throttledUpdateLocation(newLocation, rawSpeed);
       }
     };
 
     const handleError = (error) => {
       console.error("Geolocation error:", error);
-
-      // Исправлено: убрано дублирование объявления message
       let message = "Ошибка получения местоположения";
 
       if (error.code === error.TIMEOUT) {
         if (retryCount.current < 3) {
           retryCount.current += 1;
           console.log(`Retrying geolocation (attempt ${retryCount.current})`);
-          return; // Продолжаем попытки
+          return;
         }
         message =
           "Тайм-аут запроса. Проверьте подключение и разрешите геолокацию";
       }
-
-      // Переносим сброс счетчика после обработки ошибки
       retryCount.current = 0;
       setGeolocationError(message);
     };
 
     if (navigator.geolocation) {
-      // Очищаем предыдущий watch
       if (watchId.current) {
         navigator.geolocation.clearWatch(watchId.current);
       }
-
-      // Используем useRef для watchId вместо useState
       watchId.current = navigator.geolocation.watchPosition(
         handleSuccess,
         handleError,
         geolocationOptions
       );
     }
-  }, [
-    isManualLocation,
-    currentLocation,
-    throttledUpdateLocation,
-    // Добавляем недостающие зависимости
-    watchId,
-    retryCount,
-  ]);
+  }, [isManualLocation, currentLocation, throttledUpdateLocation]);
 
   const fetchWeatherData = useCallback(
     throttle(async (coords) => {
@@ -273,15 +249,13 @@ function DriverRoutePage() {
     }
   }, [currentLocation, fetchWeatherData]);
 
-  // DriverRoutePage.js
   const handleSetCurrentLocation = useCallback((coords) => {
-    setCurrentLocation([...coords]); // Создаем новый массив для триггера обновления
+    setCurrentLocation([...coords]);
     setIsManualLocation(true);
     setSelectedPoint(null);
     setRouteDetails(null);
     setIsSettingLocation(false);
 
-    // Форсируем обновление карты
     setTimeout(() => {
       const map = MapStore.getMap();
       if (map) {
@@ -291,7 +265,6 @@ function DriverRoutePage() {
     }, 100);
   }, []);
 
-  // DriverRoutePage.js
   const handleResetLocation = useCallback(() => {
     if (watchId.current) {
       navigator.geolocation.clearWatch(watchId.current);
@@ -300,13 +273,12 @@ function DriverRoutePage() {
 
     localStorage.removeItem(LOCAL_STORAGE_KEY);
     setIsManualLocation(false);
-    setCurrentLocation(null); // Сбрасываем текущее местоположение
+    setCurrentLocation(null);
     setSelectedPoint(null);
     setRouteDetails(null);
     previousLocationRef.current = null;
     retryCount.current = 0;
 
-    // Принудительно запрашиваем новое местоположение
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
@@ -318,11 +290,10 @@ function DriverRoutePage() {
     );
   }, [fetchCurrentLocation]);
 
-  // Очистка при размонтировании компонента
   useEffect(() => {
     return () => {
-      if (watchId) {
-        navigator.geolocation.clearWatch(watchId);
+      if (watchId.current) {
+        navigator.geolocation.clearWatch(watchId.current);
       }
     };
   }, [watchId]);
@@ -345,9 +316,6 @@ function DriverRoutePage() {
     setRouteStartLocation(currentLocation);
   };
 
-  const startLocationString = routeStartLocation?.join(",");
-  const endLocationString = selectedPoint?.join(",");
-
   const handleFinishRoute = async () => {
     if (!isNavigationMode) return;
     if (!routeStartTime || !routeStartLocation || !selectedPoint) {
@@ -364,8 +332,6 @@ function DriverRoutePage() {
 
     const endTime = Date.now();
     const tripDurationMs = endTime - routeStartTime;
-
-    // Форматирование времени поездки
     const seconds = Math.floor((tripDurationMs / 1000) % 60);
     const minutes = Math.floor((tripDurationMs / (1000 * 60)) % 60);
     const hours = Math.floor(tripDurationMs / (1000 * 60 * 60));
@@ -374,7 +340,6 @@ function DriverRoutePage() {
       `${minutes.toString().padStart(2, "0")}:` +
       `${seconds.toString().padStart(2, "0")}`;
 
-    // Расчет средней скорости
     const parseDistance = (distanceStr) => {
       if (!distanceStr) return 0;
       const match = distanceStr.match(/[\d,.]+/);
@@ -399,18 +364,13 @@ function DriverRoutePage() {
       average_speed: averageSpeed.toFixed(2),
     };
 
-    console.log("Данные для отправки:", routeRecord);
-
     try {
       const response = await saveRouteRecord(routeRecord);
       if (!response?.ok) {
         throw new Error("Ошибка при сохранении маршрута");
       }
-
       const data = await response.json();
       alert("Маршрут успешно сохранён!");
-
-      // Обновление локальной истории
       const storedHistory =
         JSON.parse(localStorage.getItem("routeHistory")) || [];
       storedHistory.push(routeRecord);
@@ -420,7 +380,6 @@ function DriverRoutePage() {
       alert(error.message || "Произошла ошибка при сохранении");
     }
 
-    // Сброс состояния
     setIsNavigationMode(false);
     setRouteStartTime(null);
     setRouteStartLocation(null);
@@ -436,11 +395,13 @@ function DriverRoutePage() {
       return () => clearTimeout(timer);
     }
   }, [geolocationError, currentLocation, fetchCurrentLocation]);
+
   useEffect(() => {
     return () => {
       MapStore.destroyMap();
     };
   }, []);
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <Header />
@@ -488,12 +449,6 @@ function DriverRoutePage() {
               ? "Завершить выбор местоположения"
               : "Установить мое местоположение"}
           </button>
-          <button
-            onClick={() => setIsDemoMode(!isDemoMode)}
-            className="px-4 py-2 bg-orange-500 text-white rounded-lg"
-          >
-            {isDemoMode ? "Выключить демо-режим" : "Включить демо-режим"}
-          </button>
           {isManualLocation && (
             <button
               onClick={handleResetLocation}
@@ -502,7 +457,8 @@ function DriverRoutePage() {
               Сбросить ручное местоположение
             </button>
           )}
-          {selectedPoint && routeDetails && !isNavigationMode && (
+          {/* Кнопки для начала и завершения маршрута отображаются только для авторизованных пользователей */}
+          {isAuthenticated && selectedPoint && routeDetails && !isNavigationMode && (
             <button
               onClick={handleStartNavigation}
               className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg"
@@ -510,7 +466,7 @@ function DriverRoutePage() {
               В путь
             </button>
           )}
-          {isNavigationMode && (
+          {isAuthenticated && isNavigationMode && (
             <button
               onClick={handleFinishRoute}
               className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg"
@@ -538,7 +494,6 @@ function DriverRoutePage() {
             </p>
           </div>
         )}
-
         {weather && weather.error && (
           <div className="mt-4 p-4 bg-red-100 dark:bg-red-800 rounded-lg shadow">
             <p className="text-red-600 dark:text-red-300">{weather.error}</p>
@@ -563,30 +518,6 @@ function DriverRoutePage() {
                 </p>
               </>
             )}
-          </div>
-        )}
-        {routeDetails?.warnings > 0 && (
-          <div className="mt-4 p-4 bg-yellow-100 dark:bg-yellow-800 rounded-lg shadow">
-            <p className="text-yellow-800 dark:text-yellow-200">
-              ⚠️ На маршруте {routeDetails.warnings} сложных участков
-            </p>
-          </div>
-        )}
-
-        {isNavigationMode && selectedPoint && (
-          <div className="mt-4 p-4 bg-green-100 dark:bg-green-800 rounded-lg shadow">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-              Режим навигации
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              <strong>Оставшееся расстояние до точки:</strong>{" "}
-              {remainingDistance !== null
-                ? `${remainingDistance} км`
-                : "Подсчет..."}
-            </p>
-            <p className="text-gray-600 dark:text-gray-400">
-              <strong>Текущая скорость:</strong> {speed} км/ч
-            </p>
           </div>
         )}
       </div>

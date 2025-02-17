@@ -1,4 +1,3 @@
-// StatisticsOverview.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
@@ -11,23 +10,21 @@ const StatisticsOverview = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
+        // Если токен отсутствует (гость), отправляем запрос без заголовка авторизации.
         const token = Cookies.get("token");
-        const response = await axios.get("http://127.0.0.1:8000/api/statistics/", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+        const response = await axios.get("http://127.0.0.1:8000/api/statistics/", config);
         setStats(response.data);
       } catch (error) {
         console.error("Ошибка загрузки статистики", error);
       }
     };
-
     fetchStats();
   }, []);
 
   if (!stats) {
     return <div className="text-center py-10">Загрузка статистики...</div>;
   }
-
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-200">
@@ -44,13 +41,13 @@ const StatisticsOverview = () => {
           title="Чаще доставляют в"
           value={stats.most_delivered_region}
           icon="🌍"
-          description="Регион с наибольшим числом заказов"
+          description="Регион с наибольшим числом доставок"
         />
         <StatCard
           title="Самый далекий маршрут"
           value={`${stats.farthest_route.distance} км`}
           icon="🛣️"
-          description="Маршрут с максимальным расстоянием"
+          description="Самый длинный маршрут"
         />
         <StatCard
           title="Самая быстрая доставка"
@@ -62,7 +59,7 @@ const StatisticsOverview = () => {
           title="Всего доставок"
           value={stats.total_deliveries}
           icon="📦"
-          description="Общее количество заказов"
+          description="Общее количество доставок"
         />
         <StatCard
           title="Общее расстояние"

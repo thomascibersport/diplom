@@ -11,17 +11,16 @@ import { getUser } from "../api/auth";
 import { getToken, logout as clearToken } from "../utils/auth";
 
 function Header() {
-  const [username, setUsername] = useState("");
-  const [avatar, setAvatar] = useState("/default-avatar.png"); // Состояние для аватарки
+  const [username, setUsername] = useState("Гость");
+  const [avatar, setAvatar] = useState("/default-avatar.png");
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Инициализация темы из localStorage
     const savedTheme = localStorage.getItem("theme");
     return savedTheme ? savedTheme === "dark" : false;
   });
+  const [isAuthenticated, setIsAuthenticated] = useState(!!getToken());
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Применяем тему при загрузке и изменении
     document.documentElement.classList.toggle("dark", isDarkMode);
     localStorage.setItem("theme", isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
@@ -31,17 +30,16 @@ function Header() {
       try {
         const token = getToken();
         if (!token) {
-          navigate("/login");
+          setIsAuthenticated(false);
           return;
         }
         const response = await getUser(token);
         setUsername(response.data.username);
-        // Устанавливаем аватарку, если есть, или значение по умолчанию
         setAvatar(response.data.avatar || "/default-avatar.png");
+        setIsAuthenticated(true);
       } catch (error) {
         console.error("Ошибка загрузки данных пользователя:", error);
-        clearToken();
-        navigate("/login");
+        handleLogout();
       }
     };
 
@@ -50,6 +48,9 @@ function Header() {
 
   const handleLogout = () => {
     clearToken();
+    setIsAuthenticated(false);
+    setUsername("Гость");
+    setAvatar("/default-avatar.png");
     navigate("/login");
   };
 
@@ -77,28 +78,37 @@ function Header() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 text-white hover:bg-gray-700">
-              {/* Аватарка в кружочке */}
               <img
                 src={avatar}
                 alt="avatar"
                 className="w-10 h-10 rounded-full object-cover"
               />
-              <span>{username || "Загрузка..."}</span>
+              <span>{username}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="bg-white text-black shadow-lg rounded-lg mt-2">
-            <DropdownMenuItem onClick={handleProfileSettings}>
-              Настройки профиля
-            </DropdownMenuItem>
+            {isAuthenticated && (
+              <>
+                <DropdownMenuItem onClick={handleProfileSettings}>
+                  Настройки профиля
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/route-history">История маршрутов</Link>
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuItem onClick={handleThemeChange}>
               {isDarkMode ? "Светлая тема" : "Тёмная тема"}
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/route-history">История маршрутов</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleLogout}>
-              Выйти
-            </DropdownMenuItem>
+            {isAuthenticated ? (
+              <DropdownMenuItem onClick={handleLogout}>
+                Выйти
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={() => navigate("/login")}>
+                Войти
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
