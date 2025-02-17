@@ -3,23 +3,18 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import RegisterSerializer
 from django.contrib.auth import get_user_model
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.parsers import MultiPartParser, FormParser
-from .serializers import UserSerializer
-from .serializers import RouteRecordSerializer
+from .serializers import UserSerializer, RouteRecordSerializer
 from .models import RouteRecord  
 import requests
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
-from django.http import JsonResponse, HttpResponseBadRequest
-from django.db.models import Avg, Max, Min, Count
-from django.db.models.functions import TruncDate
 from django.db.models import Avg, Max, Min, Count, Sum, FloatField, Value
 from django.db.models.functions import Cast, Coalesce, TruncDate
-
 
 
 
@@ -224,18 +219,20 @@ def deepseek_routing_proxy(request):
     else:
         return HttpResponseBadRequest("Метод запроса должен быть POST")
 class StatisticsView(APIView):
-    permission_classes = [IsAuthenticated]
-
+    # Разрешаем доступ гостям
+    permission_classes = [AllowAny]
+    
     def get(self, request):
-        # Выбираем все маршруты текущего пользователя
-        user_routes = RouteRecord.objects.filter(user=request.user)
-
-        # Отфильтровываем записи, где поля для агрегирования пустые
-        numeric_routes = user_routes.exclude(average_speed__exact='') \
-                                      .exclude(route_distance__exact='') \
-                                      .exclude(trip_duration__exact='')
-
-        # Оборачиваем агрегаты дополнительным Cast, чтобы результат гарантированно был Float
+        user = request.user
+        # Если пользователь не авторизован, выбираем все маршруты для статистики
+        if not user.is_authenticated:
+            routes = RouteRecord.objects.all()
+        else:
+            routes = RouteRecord.objects.filter(user=user)
+        
+        numeric_routes = routes.exclude(average_speed__exact='') \
+                                .exclude(route_distance__exact='') \
+                                .exclude(trip_duration__exact='')
         numeric_stats = numeric_routes.aggregate(
             average_speed=Coalesce(
                 Cast(Avg(Cast('average_speed', FloatField())), FloatField()),
@@ -258,26 +255,18 @@ class StatisticsView(APIView):
                 output_field=FloatField()
             )
         )
-
-        # Общее количество доставок считаем по всем маршрутам
-        total_deliveries = user_routes.count()
-
-        # Группировка по конечному местоположению для определения региона с наибольшим числом заказов
-        region_stats = user_routes.values('end_location').annotate(
+        total_deliveries = routes.count()
+        region_stats = routes.values('end_location').annotate(
             count=Count('id')
         ).order_by('-count')
         most_delivered_region = region_stats[0] if region_stats else {"end_location": "N/A", "count": 0}
-
-        # Данные для графика: группировка доставок по дате создания
-        deliveries_by_day = user_routes.annotate(day=TruncDate('created_at')).values('day').annotate(
+        deliveries_by_day = routes.annotate(day=TruncDate('created_at')).values('day').annotate(
             count=Count('id')
         ).order_by('day')
-
         chart_data = [
             {"day": route['day'].strftime("%d.%m"), "count": route['count']}
             for route in deliveries_by_day
         ]
-
         data = {
             "average_speed": round(numeric_stats["average_speed"], 2),
             "farthest_route": {

@@ -138,6 +138,10 @@ function InteractiveMap({
 
 // InteractiveMap.js
 const initializeMap = useCallback(() => {
+  if (!mapContainerRef.current) {
+    console.error("Контейнер карты не найден");
+    return;
+  }
   if (!window.ymaps) return;
 
   const map = MapStore.getMap();
