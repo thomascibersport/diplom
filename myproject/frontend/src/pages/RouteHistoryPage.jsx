@@ -103,7 +103,7 @@ function RouteHistoryPage() {
           <ul className="space-y-4">
             {routeHistory.map((route, index) => (
               <li key={index} className="p-4 border rounded-lg bg-white dark:bg-gray-800 shadow flex flex-col">
-                <p className="font-semibold text-lg">Маршрут {index + 1}</p>
+                <p className="font-semibold text-lg text-gray-700 dark:text-gray-300">Маршрут {index + 1}</p>
                 <p className="text-gray-700 dark:text-gray-300">
                   🕒{" "}
                   <strong>
@@ -119,7 +119,7 @@ function RouteHistoryPage() {
                   🚗 <strong>Время в пути:</strong> {route.trip_duration} | 🛣️{" "}
                   <strong>Расстояние:</strong> {route.route_distance}
                 </p>
-                <p>Средняя скорость: {route.average_speed} км/ч</p>
+                <p className="text-gray-700 dark:text-gray-300"> <strong>Средняя скорость: {route.average_speed} км/ч</strong></p>
                 {route.weather_description && (
                   <p className="text-gray-700 dark:text-gray-300">
                     ⛅ <strong>Погода:</strong> {route.weather_description} | 🌡️{" "}
