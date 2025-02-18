@@ -12,7 +12,7 @@ import { getToken, logout as clearToken } from "../utils/auth";
 
 function Header() {
   const [username, setUsername] = useState("Гость");
-  const [avatar, setAvatar] = useState("/default-avatar.png");
+  const [avatar, setAvatar] = useState("/media/default-avatar.png");
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const savedTheme = localStorage.getItem("theme");
     return savedTheme ? savedTheme === "dark" : false;
@@ -35,7 +35,7 @@ function Header() {
         }
         const response = await getUser(token);
         setUsername(response.data.username);
-        setAvatar(response.data.avatar || "/default-avatar.png");
+        setAvatar(response.data.avatar || "/media/default-avatar.png");
         setIsAuthenticated(true);
       } catch (error) {
         console.error("Ошибка загрузки данных пользователя:", error);
@@ -50,7 +50,7 @@ function Header() {
     clearToken();
     setIsAuthenticated(false);
     setUsername("Гость");
-    setAvatar("/default-avatar.png");
+    setAvatar("/media/default-avatar.png");
     navigate("/login");
   };
 
