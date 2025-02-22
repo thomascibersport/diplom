@@ -1,8 +1,8 @@
 import Cookies from "js-cookie";
+import { jwtDecode } from "jwt-decode";
 
-// Сохраняем токен в куки
 export const saveToken = (token) => {
-  // Параметры можно настроить: 
+  // Параметры можно настроить:
   // secure: true (только по HTTPS), sameSite: 'Strict' или 'Lax'
   Cookies.set("token", token, { secure: true, sameSite: "Strict" });
 };
@@ -13,10 +13,18 @@ export const getToken = () => Cookies.get("token");
 // Удаляем токен из куки
 export const removeToken = () => Cookies.remove("token");
 
-// Проверяем, существует ли токен
 export const isAuthenticated = () => {
-  const token = getToken();
-  return !!token;
+  const token = Cookies.get("token");
+  return token !== undefined;
+};
+
+export const isAdmin = () => {
+  const token = Cookies.get("token");
+  if (token) {
+    const decodedToken = jwtDecode(token);
+    return decodedToken.is_staff || decodedToken.is_superuser;
+  }
+  return false;
 };
 
 // Выход (удаление токена)

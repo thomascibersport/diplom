@@ -2,7 +2,15 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
 import StatCard from "../components/StatCard";
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+} from "recharts";
 
 const StatisticsOverview = () => {
   const [stats, setStats] = useState(null);
@@ -12,8 +20,13 @@ const StatisticsOverview = () => {
       try {
         // Если токен отсутствует (гость), отправляем запрос без заголовка авторизации.
         const token = Cookies.get("token");
-        const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-        const response = await axios.get("http://127.0.0.1:8000/api/statistics/", config);
+        const config = token
+          ? { headers: { Authorization: `Bearer ${token}` } }
+          : {};
+        const response = await axios.get(
+          "http://127.0.0.1:8000/api/statistics/",
+          config
+        );
         setStats(response.data);
       } catch (error) {
         console.error("Ошибка загрузки статистики", error);
@@ -44,14 +57,13 @@ const StatisticsOverview = () => {
           description="Регион с наибольшим числом доставок"
         />
         <StatCard
-          title="Самый далекий маршрут"
+          title="Самый длинный маршрут"
           value={`${stats.farthest_route.distance} км`}
           icon="🛣️"
-          description="Самый длинный маршрут"
         />
         <StatCard
           title="Самая быстрая доставка"
-          value={stats.fastest_delivery.duration}
+          value={`${stats.fastest_delivery.duration}1:01 мин`}
           icon="⏱️"
           description="Минимальное время доставки"
         />
@@ -73,12 +85,20 @@ const StatisticsOverview = () => {
           Динамика доставок по дням
         </h3>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={stats.deliveries_chart} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+          <LineChart
+            data={stats.deliveries_chart}
+            margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+          >
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="day" />
             <YAxis />
             <Tooltip />
-            <Line type="monotone" dataKey="count" stroke="#8884d8" strokeWidth={2} />
+            <Line
+              type="monotone"
+              dataKey="count"
+              stroke="#8884d8"
+              strokeWidth={2}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>

@@ -168,7 +168,7 @@ function EditProfilePage() {
         setLastName(response.data.last_name);
         setMiddleName(response.data.middle_name);
         setPhone(response.data.phone);
-        setPreview(response.data.avatar || "/default-avatar.png");
+        setPreview(response.data.avatar || "/media/default-avatar.png");
         setLoading(false);
       } catch (err) {
         console.error("Ошибка загрузки данных пользователя:", err);

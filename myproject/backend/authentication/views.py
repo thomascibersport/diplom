@@ -15,13 +15,36 @@ from django.views.decorators.http import require_POST
 import json
 from django.db.models import Avg, Max, Min, Count, Sum, FloatField, Value
 from django.db.models.functions import Cast, Coalesce, TruncDate
-
-
+from django.shortcuts import redirect
+from django.urls import reverse
+from django.contrib.auth import authenticate, login as django_login
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.response import Response
+from rest_framework import status
 
 
 
 
 User = get_user_model()
+class CustomLoginView(APIView):
+    permission_classes = []  # доступ всем
+
+    def post(self, request):
+        username = request.data.get("username")
+        password = request.data.get("password")
+        user = authenticate(username=username, password=password)
+        if user is not None:
+            django_login(request, user)
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "is_admin": user.is_staff
+            })
+        return Response({"error": "Неверные учётные данные"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+        
 class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -180,63 +203,26 @@ class RouteRecordDeleteView(APIView):
         route.delete()
         return Response({"message": "Маршрут успешно удалён."}, status=status.HTTP_200_OK)
 
-@csrf_exempt
-@require_POST
-def proxy_deepseek(request):
-    url = "https://api.deepseek.com/v1/routing"
-    # Передаем тело запроса без изменений
-    response = requests.post(url, data=request.body, headers={
-        "Content-Type": request.headers.get("Content-Type", "application/json"),
-        "Authorization": request.headers.get("Authorization", "")
-    })
-    data = response.json()
-    # Возвращаем ответ с нужными заголовками CORS
-    res = JsonResponse(data)
-    res["Access-Control-Allow-Origin"] = "*"
-    return res
-@csrf_exempt  # если вы не используете CSRF-токены для API-запросов
-def deepseek_routing_proxy(request):
-    if request.method == 'POST':
-        try:
-            # Извлекаем данные из запроса
-            data = json.loads(request.body)
-            # Пример ожидаемых данных:
-            # data = {
-            #     "start_point": [lat, lon],
-            #     "end_point": [lat, lon],
-            #     "weather_conditions": { ... },
-            #     "options": { ... }
-            # }
-            
-            # Здесь можно сделать запрос к внешнему DeepSeek API:
-            external_api_url = "https://external-api.example.com/deepseek-routing"  # замените на реальный URL
-            response = requests.post(external_api_url, json=data)
-            
-            # Если нужно, можно обработать ответ или просто вернуть его клиенту:
-            return JsonResponse(response.json())
-        except Exception as e:
-            return HttpResponseBadRequest(f"Ошибка: {str(e)}")
-    else:
-        return HttpResponseBadRequest("Метод запроса должен быть POST")
 class StatisticsView(APIView):
-    # Разрешаем доступ гостям
     permission_classes = [AllowAny]
     
     def get(self, request):
-        # Получаем все маршруты, независимо от того, авторизован пользователь или нет
         routes = RouteRecord.objects.all()
         
+        # Отбираем только записи с числовыми значениями
         numeric_routes = routes.exclude(average_speed__exact='') \
                                 .exclude(route_distance__exact='') \
                                 .exclude(trip_duration__exact='')
+        
+        # Получаем запись самого длинного маршрута
+        farthest_route_record = numeric_routes.annotate(
+            route_distance_float=Cast('route_distance', FloatField())
+        ).order_by('-route_distance_float').first()
+        
+        # Вычисляем агрегированные статистики
         numeric_stats = numeric_routes.aggregate(
             average_speed=Coalesce(
                 Cast(Avg(Cast('average_speed', FloatField())), FloatField()),
-                Value(0.0, output_field=FloatField()),
-                output_field=FloatField()
-            ),
-            max_distance=Coalesce(
-                Cast(Max(Cast('route_distance', FloatField())), FloatField()),
                 Value(0.0, output_field=FloatField()),
                 output_field=FloatField()
             ),
@@ -253,7 +239,7 @@ class StatisticsView(APIView):
         )
         total_deliveries = routes.count()
         
-        # Группировка маршрутов по городу (извлекаем город из end_location)
+        # Определяем регион с наибольшим числом доставок
         city_counts = {}
         for route in routes:
             address = route.end_location
@@ -261,11 +247,9 @@ class StatisticsView(APIView):
                 city = address.split(',')[0].strip()
                 city_counts[city] = city_counts.get(city, 0) + 1
         
-        if city_counts:
-            most_delivered_region = max(city_counts.items(), key=lambda x: x[1])[0]
-        else:
-            most_delivered_region = "N/A"
+        most_delivered_region = max(city_counts.items(), key=lambda x: x[1])[0] if city_counts else "N/A"
         
+        # Формируем данные для графика доставок по дням
         deliveries_by_day = routes.annotate(day=TruncDate('created_at')).values('day').annotate(
             count=Count('id')
         ).order_by('day')
@@ -273,10 +257,13 @@ class StatisticsView(APIView):
             {"day": route['day'].strftime("%d.%m"), "count": route['count']}
             for route in deliveries_by_day
         ]
+        
         data = {
             "average_speed": round(numeric_stats["average_speed"], 2),
             "farthest_route": {
-                "distance": numeric_stats["max_distance"],
+                "distance": farthest_route_record.route_distance if farthest_route_record else 0,
+                "start_location": farthest_route_record.start_location if farthest_route_record else "",
+                "end_location": farthest_route_record.end_location if farthest_route_record else ""
             },
             "fastest_delivery": {
                 "duration": numeric_stats["fastest_delivery"],

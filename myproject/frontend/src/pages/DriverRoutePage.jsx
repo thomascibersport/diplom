@@ -97,47 +97,47 @@ function DriverRoutePage() {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const demoPositions = useRef([
     [55.751244, 37.618423],
-    [55.753930, 37.620795],
-    [55.756594, 37.623356]
+    [55.75393, 37.620795],
+    [55.756594, 37.623356],
   ]);
   const demoStep = useRef(0);
   const prevDemoCoords = useRef(null);
 
   useEffect(() => {
     if (!isDemoMode) return;
-  
+
     const updateDemoLocation = () => {
       if (demoStep.current >= demoPositions.current.length - 1) {
         demoStep.current = 0;
         prevDemoCoords.current = null;
         return;
       }
-  
+
       const newCoords = demoPositions.current[demoStep.current];
       const nextCoords = demoPositions.current[demoStep.current + 1];
-  
+
       const distance = haversineDistance(newCoords, nextCoords);
       const timeDelta = 5;
       const speed = (distance / (timeDelta / 3600)).toFixed(2);
-  
+
       setCurrentLocation(nextCoords);
       setSpeed(speed);
       setIsManualLocation(false);
-  
+
       demoStep.current += 1;
       prevDemoCoords.current = nextCoords;
-  
+
       const timerId = setTimeout(updateDemoLocation, timeDelta * 1000);
       return () => clearTimeout(timerId);
     };
-  
+
     if (demoStep.current === 0) {
       setCurrentLocation(demoPositions.current[0]);
       prevDemoCoords.current = demoPositions.current[0];
     }
-  
+
     const timerId = setTimeout(updateDemoLocation, 5000);
-  
+
     return () => {
       clearTimeout(timerId);
       demoStep.current = 0;
@@ -178,9 +178,10 @@ function DriverRoutePage() {
 
     const handleSuccess = (position) => {
       retryCount.current = 0;
+      setGeolocationError(null); // Сбрасываем ошибку при успешном получении координат
       const { latitude, longitude, speed: rawSpeed } = position.coords;
       const newLocation = [latitude, longitude];
-
+    
       if (
         !currentLocation ||
         haversineDistance(currentLocation, newLocation) > 0.01
@@ -189,6 +190,7 @@ function DriverRoutePage() {
         throttledUpdateLocation(newLocation, rawSpeed);
       }
     };
+    
 
     const handleError = (error) => {
       console.error("Geolocation error:", error);
@@ -458,14 +460,17 @@ function DriverRoutePage() {
             </button>
           )}
           {/* Кнопки для начала и завершения маршрута отображаются только для авторизованных пользователей */}
-          {isAuthenticated && selectedPoint && routeDetails && !isNavigationMode && (
-            <button
-              onClick={handleStartNavigation}
-              className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg"
-            >
-              В путь
-            </button>
-          )}
+          {isAuthenticated &&
+            selectedPoint &&
+            routeDetails &&
+            !isNavigationMode && (
+              <button
+                onClick={handleStartNavigation}
+                className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg"
+              >
+                В путь
+              </button>
+            )}
           {isAuthenticated && isNavigationMode && (
             <button
               onClick={handleFinishRoute}

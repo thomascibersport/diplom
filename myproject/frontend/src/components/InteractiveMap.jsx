@@ -87,18 +87,23 @@ function InteractiveMap({
   }, []);
 
   const buildRoute = useCallback(
-    throttle((map, endPoint) => {
+    throttle(async (map, endPoint) => {
       if (!currentLocation || !window.ymaps) return;
-
+  
+      // Удаляем предыдущий маршрут, если он существует
       if (multiRouteRef.current) {
         map.geoObjects.remove(multiRouteRef.current);
         multiRouteRef.current = null;
       }
-
+  
+      // Создаём объект MultiRoute для получения нескольких маршрутов
       const multiRoute = new window.ymaps.multiRouter.MultiRoute(
         {
           referencePoints: [currentLocation, endPoint],
-          params: { avoidTrafficJams: true },
+          params: {
+            avoidTrafficJams: true,
+            results: 3, // Запрашиваем 3 альтернативных маршрута
+          },
         },
         {
           boundsAutoApply: true,
@@ -108,31 +113,88 @@ function InteractiveMap({
           routeStrokeWidth: 3,
         }
       );
-
-      multiRoute.model.events.add("requestsuccess", () => {
-        const activeRoute = multiRoute.getActiveRoute();
-        onRouteDetails(
-          activeRoute
-            ? {
-                distance: activeRoute.properties.get("distance").text,
-                duration: activeRoute.properties.get("duration").text,
+  
+      // Обрабатываем успешное получение маршрутов
+      multiRoute.model.events.add("requestsuccess", async () => {
+        const routes = multiRoute.getRoutes();
+        if (routes.getLength() > 0) {
+          // Собираем данные о всех маршрутах
+          const routeData = [];
+          for (let i = 0; i < routes.getLength(); i++) {
+            const route = routes.get(i);
+            const distance = route.properties.get("distance").text; // Например, "10 км"
+            const duration = route.properties.get("duration").text; // Например, "20 мин"
+            routeData.push(`Маршрут ${i + 1}: расстояние ${distance}, время ${duration}.`);
+          }
+  
+          // Формируем промпт для ИИ Qwen
+          const prompt = `У меня есть следующие маршруты:\n${routeData.join("\n")}\nКакой из них самый быстрый и оптимальный?`;
+  
+          try {
+            // Отправляем запрос в API Qwen
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer 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",
+              },
+              body: JSON.stringify({
+                model: "qwen/qwen-vl-plus:free",
+                messages: [{ role: "user", content: prompt }],
+              }),
+            });
+  
+            if (!response.ok) {
+              throw new Error("Ошибка при запросе к API Qwen");
+            }
+  
+            const data = await response.json();
+            const answer = data.choices[0].message.content.trim(); // Получаем ответ от Qwen
+  
+            // Извлекаем номер выбранного маршрута из ответа
+            const match = answer.match(/маршрут (\d)/i);
+            if (match) {
+              const routeIndex = parseInt(match[1], 10) - 1; // Преобразуем в индекс (0-based)
+              if (routeIndex >= 0 && routeIndex < routes.getLength()) {
+                const optimalRoute = routes.get(routeIndex);
+                multiRoute.setActiveRoute(optimalRoute); // Устанавливаем оптимальный маршрут
+                onRouteDetails({
+                  distance: optimalRoute.properties.get("distance").text,
+                  duration: optimalRoute.properties.get("duration").text,
+                });
+              } else {
+                throw new Error("Некорректный номер маршрута в ответе");
               }
-            : { error: "Маршрут не найден" }
-        );
-      });
-
-      multiRoute.model.events.add("activeroutechange", () => {
-        const activeRoute = multiRoute.getActiveRoute();
-        onRouteDetails(
-          activeRoute
-            ? {
-                distance: activeRoute.properties.get("distance").text,
-                duration: activeRoute.properties.get("duration").text,
+            } else {
+              throw new Error("Не удалось извлечь номер маршрута из ответа");
+            }
+          } catch (error) {
+            console.error("Ошибка при работе с API Qwen:", error);
+            // Fallback: выбираем маршрут с минимальным временем
+            let optimalRoute = routes.get(0);
+            let minDuration = optimalRoute.properties.get("duration").value;
+  
+            for (let i = 1; i < routes.getLength(); i++) {
+              const route = routes.get(i);
+              const duration = route.properties.get("duration").value;
+              if (duration < minDuration) {
+                minDuration = duration;
+                optimalRoute = route;
               }
-            : { error: "Маршрут не найден" }
-        );
+            }
+  
+            multiRoute.setActiveRoute(optimalRoute);
+            onRouteDetails({
+              distance: optimalRoute.properties.get("distance").text,
+              duration: optimalRoute.properties.get("duration").text,
+            });
+          }
+        } else {
+          onRouteDetails({ error: "Маршрут не найден" });
+        }
       });
-
+  
+      // Добавляем маршрут на карту
       map.geoObjects.add(multiRoute);
       multiRouteRef.current = multiRoute;
     }, 1000),

@@ -67,11 +67,15 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,                   # Автоматически обновлять refresh-токен при каждом запросе
     'BLACKLIST_AFTER_ROTATION': True,                # Добавлять старые refresh-токены в черный список
 }
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
-
+CSRF_TRUSTED_ORIGINS = [
+    "http://react.example.com",
+    "http://django.example.com",
+]
 ROOT_URLCONF = 'backend.urls'
 
 TEMPLATES = [

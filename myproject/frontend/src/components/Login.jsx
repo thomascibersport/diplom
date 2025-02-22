@@ -25,7 +25,11 @@ function Login() {
     try {
       const response = await login(credentials);
       saveToken(response.data.access);
-      navigate("/"); // Перенаправляем на главную страницу
+      if (response.data.is_admin) {
+        window.location.href = "http://127.0.0.1:8000/admin/"; // Перенаправление на админку Django
+      } else {
+        navigate("/"); // Перенаправляем на главную страницу
+      }
     } catch (err) {
       console.error("Ошибка авторизации:", err);
       setError("Неверное имя пользователя или пароль.");
